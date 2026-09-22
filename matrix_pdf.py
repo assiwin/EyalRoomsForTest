@@ -6,7 +6,7 @@ from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
-from reportlab.platypus import Table, TableStyle
+from reportlab.platypus import Paragraph, Table, TableStyle
 
 from envelopes import _clean, _p, _register_fonts, _visual
 
@@ -45,6 +45,10 @@ def create_matrix_pdf(result, font_base):
     header = ParagraphStyle(
         'matrix-header-he', parent=normal, fontName='EnvelopeHebrewBold',
         fontSize=7.4, leading=8.5, alignment=TA_CENTER)
+    room_header_font = 6.8 if len(rooms) <= 15 else 5.8 if len(rooms) <= 20 else 5.0
+    room_header = ParagraphStyle(
+        'matrix-room-header-he', parent=header,
+        fontSize=room_header_font, leading=room_header_font + 1)
     teacher_style = ParagraphStyle(
         'matrix-teacher-he', parent=normal, fontSize=7.6,
         leading=8.6, alignment=TA_RIGHT)
@@ -60,16 +64,19 @@ def create_matrix_pdf(result, font_base):
     max_rows = max(1, int((top - bottom - title_block - header_height) // row_height) - 1)
     chunks = [rows[i:i + max_rows] for i in range(0, len(rows), max_rows)]
 
-    name_width = 37 * mm
-    unit_width = 15 * mm
-    total_width = 17 * mm
+    name_width = 30 * mm
+    unit_width = 12 * mm
+    total_width = 14 * mm
     room_width = min(12 * mm, (usable - name_width - unit_width - total_width) / len(rooms))
     col_widths = [room_width] * len(rooms) + [total_width, unit_width, name_width]
     table_width = sum(col_widths)
 
     descending_rooms = list(reversed(rooms))
     descending_totals = list(reversed(room_totals))
-    header_row = [str(room) for room in descending_rooms] + [
+    header_row = [
+        Paragraph(_visual(f'חדר {room}').replace(' ', '&nbsp;'), room_header)
+        for room in descending_rooms
+    ] + [
         _p('סה״כ', header), _p('יחידות', header), _p('שם מורה', header)]
 
     for page_index, chunk in enumerate(chunks):
@@ -114,6 +121,8 @@ def create_matrix_pdf(result, font_base):
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('LEFTPADDING', (0, 0), (-1, -1), 2),
             ('RIGHTPADDING', (0, 0), (-1, -1), 2),
+            ('LEFTPADDING', (0, 0), (len(rooms) - 1, 0), 0.2),
+            ('RIGHTPADDING', (0, 0), (len(rooms) - 1, 0), 0.2),
             ('TOPPADDING', (0, 0), (-1, -1), 1),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 1),
         ]
