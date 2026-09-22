@@ -3,7 +3,7 @@ let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,teacherReportsBusy
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
-const scheduleDefaults={3a:{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'08:45',duration:160},5:{start:'10:35',duration:130}};
+const scheduleDefaults={'3a':{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'08:45',duration:160},5:{start:'10:35',duration:130}};
 function scheduleEnd(start,duration,extra){
   if(!/^\d{2}:\d{2}$/.test(start)||!Number.isInteger(duration)||duration<1)return '—';
   const [hours,minutes]=start.split(':').map(Number),total=hours*60+minutes+duration+Math.floor(duration*extra/100);
@@ -24,7 +24,7 @@ function updateSchedule(){
   $('continueToUpload').disabled=!$('scheduleForm').checkValidity();
 }
 function scheduleSummary(){
-  const labels={3a:'3א',3:'3 יח׳',4:'4 יח׳',5:'5 יח׳'};
+  const labels={'3a':'3א',3:'3 יח׳',4:'4 יח׳',5:'5 יח׳'};
   $('scheduleSummary').textContent='זמני הבחינה: '+scheduleLevels.map(level=>labels[level]+' '+examSchedule[level].start+'–'+scheduleEnd(examSchedule[level].start,examSchedule[level].duration,0)).join(' · ');
 }
 function showSchedule(){
