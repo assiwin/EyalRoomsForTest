@@ -1,6 +1,45 @@
 const $=id=>document.getElementById(id),token=document.querySelector('meta[name=app-token]').content;
-let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,teacherReportsBusy=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null;
+let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,teacherReportsBusy=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,examSchedule=null;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
+const scheduleDefaults={3a:{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'08:45',duration:160},5:{start:'10:35',duration:130}};
+function scheduleEnd(start,duration,extra){
+  if(!/^\d{2}:\d{2}$/.test(start)||!Number.isInteger(duration)||duration<1)return '—';
+  const [hours,minutes]=start.split(':').map(Number),total=hours*60+minutes+duration+Math.floor(duration*extra/100);
+  return String(Math.floor(total/60)%24).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
+}
+function readSchedule(){
+  const value={};
+  for(const level of scheduleLevels)value[level]={start:$('start-'+level).value,duration:Number($('duration-'+level).value)};
+  return value;
+}
+function applySchedule(value){
+  for(const level of scheduleLevels){const row=value?.[level]||scheduleDefaults[level];$('start-'+level).value=row.start;$('duration-'+level).value=row.duration}
+  updateSchedule();
+}
+function updateSchedule(){
+  const value=readSchedule();
+  for(const level of scheduleLevels)for(const extra of scheduleExtras)$('end-'+level+'-'+extra).textContent=scheduleEnd(value[level].start,value[level].duration,extra);
+  $('continueToUpload').disabled=!$('scheduleForm').checkValidity();
+}
+function scheduleSummary(){
+  const labels={3a:'3א',3:'3 יח׳',4:'4 יח׳',5:'5 יח׳'};
+  $('scheduleSummary').textContent='זמני הבחינה: '+scheduleLevels.map(level=>labels[level]+' '+examSchedule[level].start+'–'+scheduleEnd(examSchedule[level].start,examSchedule[level].duration,0)).join(' · ');
+}
+function showSchedule(){
+  $('mainScreen').hidden=true;$('roomMapScreen').hidden=true;$('scheduleScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'});
+}
+function continueToUpload(){
+  if(!$('scheduleForm').reportValidity())return;
+  examSchedule=readSchedule();localStorage.setItem('exam-room-schedule-v8',JSON.stringify(examSchedule));scheduleSummary();
+  $('scheduleScreen').hidden=true;$('mainScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'});
+}
+$('scheduleForm').oninput=updateSchedule;
+$('continueToUpload').onclick=continueToUpload;
+$('resetSchedule').onclick=()=>{localStorage.removeItem('exam-room-schedule-v8');applySchedule(scheduleDefaults)};
+$('editSchedule').onclick=showSchedule;
+try{applySchedule(JSON.parse(localStorage.getItem('exam-room-schedule-v8'))||scheduleDefaults)}catch{applySchedule(scheduleDefaults)}
 
 async function api(path,body,raw=false){
   const headers={'X-App-Token':token};
