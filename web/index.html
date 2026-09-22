@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>אפליקציה לשיבוץ חדרים לנבחנים</title>
+  <link rel="stylesheet" href="style.css">
+  <meta name="app-token" content="__TOKEN__">
+</head>
+<body>
+  <header>
+    <div class="brand"><span class="mark">▦</span><b>סדרן חדרים</b></div>
+    <span class="privacy">עיבוד מקומי בלבד · Windows</span>
+    <button id="exit" class="smallbutton">סגירת האפליקציה</button>
+  </header>
+  <main>
+    <div class="intro">
+      <span class="eyebrow">גרסה 6</span>
+      <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
+      <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
+    </div>
+    <div class="workspace">
+      <section class="panel">
+        <div class="step"><span>01</span><h2>קובץ התלמידים</h2></div>
+        <label class="drop" id="drop"><span class="upload">↥</span><b>בחירת קובץ Excel או גרירה לכאן</b><span>XLSX או XLSM · עד 20 MB</span><input id="file" type="file" accept=".xlsx,.xlsm"></label>
+        <div id="fileinfo" aria-live="polite"></div>
+        <p class="note">השיבוץ מתבצע בגיליון dbase עבור תלמידים המסומנים 1 בעמודה J. שיבוצים קודמים של משתתפים יוחלפו.</p>
+
+        <div class="step"><span>02</span><h2>כללי השיבוץ</h2></div>
+        <form id="settings">
+          <div class="field"><label for="normal">תקרה רגילה לתלמידים בחדר</label><input id="normal" type="number" min="1" max="100" value="29" required></div>
+          <div class="field"><label for="maximum">תקרה מרבית בחדר החורג</label><input id="maximum" type="number" min="1" max="100" value="32" required></div>
+          <div class="field"><label for="percent">אחוז מרבי של חדרים חורגים</label><input id="percent" type="number" min="0" max="100" value="30" required></div>
+          <div class="field"><label for="level">תלמידים מאותה רמת לימוד בחדר</label><input id="level" type="number" min="1" max="100" value="16" required></div>
+          <div class="field"><label for="limit">מספר חדרים מרבי כולל</label><input id="limit" type="number" min="1" max="25" value="25" required></div>
+          <p class="note">מכסת החריגה מחושבת מחדרים רגילים בלבד, בעיגול מטה. חדרי כיתות 7 וחדרים מיוחדים אינם נכללים.</p>
+          <details><summary>כללים נוספים</summary><ul><li>אין ערבוב 3 ו־3א בחדרים רגילים.</li><li>כל כיתת י7, יא7 או יב7 בחדר נפרד, בסוף החדרים הרגילים.</li><li>עד שני חדרים לקבוצת מורה ויחידות עם עד 32 תלמידים רגילים; עד שלושה לקבוצה גדולה יותר.</li><li>עד שלושה מורים עם קבוצות המפוצלות לשלושה חדרים.</li><li>חדרים מיוחדים לפי K, L, M, לאחר הרגילים. סוגים ריקים אינם מקבלים מספר.</li><li>מותר לערבב 3 ו־3א בחדרים המיוחדים. קיבולת כל חדר טעונה הזנה.</li><li>השורות והמאקרו נשמרים. המאקרו אינו מורץ.</li></ul></details>
+          <div id="special"></div>
+        </form>
+        <button id="run" class="primary" disabled>חשב שיבוץ</button>
+        <button id="cancel" class="secondary" hidden>ביטול החישוב</button>
+        <p id="status" role="status" aria-live="polite">בחרו קובץ כדי להתחיל.</p>
+      </section>
+
+      <section class="panel results">
+        <div class="step"><span>03</span><h2>תוצאות השיבוץ</h2></div>
+        <div id="error" class="error" role="alert" hidden></div>
+        <div id="results"><div class="empty"><span>▦</span><h3>תוצאות השיבוץ יוצגו כאן לאחר החישוב.</h3></div></div>
+        <div id="adjust" hidden>
+          <hr><h2>התאמת מספר החדרים</h2>
+          <p class="note">תמיד ביחס לתוצאת הבסיס. החדרים הייעודיים והמיוחדים נשארים נפרדים.</p>
+          <div class="controls"><label><input type="radio" name="op" value="add" checked> הוספה</label><label><input type="radio" name="op" value="remove"> הורדה</label><label for="delta">מספר חדרים</label><input id="delta" type="number" min="1" max="24" value="2"></div>
+          <p id="target"></p><button id="rebalance" class="primary">חשב מחדש ואזן</button><button id="reset" class="secondary">חזרה לשיבוץ המקורי</button>
+        </div>
+        <button id="download" class="primary" hidden>הורדת קובץ השיבוץ</button>
+        <button id="report" class="secondary" hidden>הורדת דוח בדיקות</button>
+        <p class="note">קובץ המקור נשאר ללא שינוי. תוצאות נוסחאות תלויות מתעדכנות בפתיחה ב־Excel.</p>
+
+        <section id="envelopeSection" class="envelopes" hidden>
+          <hr><div class="step"><span>04</span><h2>הכנת דפי מעטפות</h2></div>
+          <p class="note">נוצר עמוד A4 נפרד לכל חדר ובו רשימת הנבחנים וסיכום לפי יחידות לימוד.</p>
+          <div class="envelope-grid">
+            <fieldset>
+              <legend>מבחן שכבה</legend>
+              <div class="grade-options" role="radiogroup" aria-label="מבחן שכבה"><label><input type="radio" name="grade" value="י׳"> י׳</label><label><input type="radio" name="grade" value="י״א"> י״א</label><label><input type="radio" name="grade" value="י״ב"> י״ב</label></div>
+              <p class="help">בחירת השכבה היא חובה ותופיע בכל דפי המעטפות.</p>
+            </fieldset>
+            <fieldset>
+              <legend>הערות לחדרים</legend>
+              <div id="noteRows"></div>
+              <button id="addNote" type="button" class="smallbutton">הוסף הערה נוספת</button>
+              <p class="help">אפשר להוסיף עד שתי הערות. ההערה תופיע רק בחדר שנבחר.</p>
+            </fieldset>
+          </div>
+          <button id="makePdf" class="primary" disabled>הפק דפי מעטפות PDF</button>
+          <p id="pdfStatus" class="note" role="status" aria-live="polite"></p>
+          <div id="pdfSuccess" class="success" hidden><b>דפי המעטפות מוכנים.</b><p id="pdfDetails"></p><div class="button-row"><button id="downloadPdf" class="primary">הורדת PDF</button><button id="openPdf" class="secondary">פתח PDF</button><button id="openOutput" class="secondary">פתח תיקיית פלט</button></div></div>
+        </section>
+      </section>
+    </div>
+  </main>
+  <footer>נוצר על ידי אסי וינברגר</footer>
+  <script src="ui.js"></script>
+</body>
+</html>

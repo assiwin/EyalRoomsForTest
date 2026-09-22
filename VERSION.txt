@@ -1,0 +1,9 @@
+6.0
+
+New in this version:
+- A4 PDF envelope sheets, one page per occupied room.
+- Required exam-grade selection: י׳, י״א or י״ב.
+- Up to two room-specific notes.
+- Hebrew footer credit on every application screen.
+- Printed envelope pages contain no credit and no page numbering.
+- Single-EXE Inno Setup installer project with desktop and Start Menu shortcuts.
