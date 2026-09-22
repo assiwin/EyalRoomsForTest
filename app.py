@@ -5,6 +5,8 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, unquote
 from engine import read_book, solve, write_book
 from envelopes import create_envelopes_pdf
+from matrix_pdf import create_matrix_pdf
+from teacher_reports import create_teacher_reports
 
 DEBUG = os.environ.get('EXAM_ROOM_DEBUG') == '1'
 
@@ -17,7 +19,7 @@ def main():
     base=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
     app_dir=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parent
     output_dir=app_dir/'Output'
-    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None}
+    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None}
     def cancel():
         p=state.get('process')
         if p is not None:
@@ -54,7 +56,7 @@ def main():
                             msg=state['conn'].recv();p.join(timeout=1);state['process']=None;state['conn'].close()
                             if msg['ok']:
                                 try:
-                                    result=msg['result'];output=write_book(state['data'],state['book'],result);state['result']=result;state['output']=output;state['envelope']=None;state['envelopePath']=None;state['envelopeMeta']=None
+                                    result=msg['result'];output=write_book(state['data'],state['book'],result);state['result']=result;state['output']=output;state['envelope']=None;state['envelopePath']=None;state['envelopeMeta']=None;state['matrixPdf']=None;state['matrixPdfPath']=None;state['matrixPdfMeta']=None;state['teacherReportsZip']=None;state['teacherReportsZipPath']=None;state['teacherReportsDir']=None;state['teacherReportsMeta']=None
                                     if state['isBase']:state['baseTotal']=result['total'];state['baseResult']=result;state['baseOutput']=output
                                 except Exception as e:msg={'ok':False,'error':'שמירת הפלט נכשלה: '+str(e)}
                             if not msg['ok']:state['error']=msg['error']
@@ -64,6 +66,10 @@ def main():
                     self.send(200,state['output'],'application/octet-stream');return
                 if path=='/download-pdf' and state.get('envelope'):
                     self.send(200,state['envelope'],'application/pdf');return
+                if path=='/download-matrix-pdf' and state.get('matrixPdf'):
+                    self.send(200,state['matrixPdf'],'application/pdf');return
+                if path=='/download-teacher-reports' and state.get('teacherReportsZip'):
+                    self.send(200,state['teacherReportsZip'],'application/zip');return
             self.send(404,{'error':'לא נמצאה תוצאה.'})
         def do_POST(self):
             if not self.valid_host():return
@@ -74,7 +80,7 @@ def main():
                 raw=self.rfile.read(length);path=urlparse(self.path).path
                 with lock:
                     if path=='/upload':
-                        cancel();state.update(book=None,result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None)
+                        cancel();state.update(book=None,result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None)
                         name=unquote(self.headers.get('X-Filename','input.xlsx'))
                         if Path(name).suffix.lower() not in ['.xlsm','.xlsx']:raise ValueError('נדרש קובץ XLSX או XLSM.')
                         book=read_book(raw);state.update(data=raw,book=book,name=Path(name).name)
@@ -89,15 +95,39 @@ def main():
                             delta=payload.get('delta');op=payload.get('op')
                             if type(delta) is not int or delta<1 or op not in ['add','remove']:raise ValueError('מספר החדרים לשינוי אינו תקין.')
                             target=state['baseTotal']+(delta if op=='add' else -delta)
-                        else:state.update(result=None,output=None,baseTotal=None,envelope=None,envelopePath=None,envelopeMeta=None)
+                        else:state.update(result=None,output=None,baseTotal=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None)
                         recv,send=mp.Pipe(duplex=False);p=mp.Process(target=work,args=(send,state['book'],c,target));p.start();send.close();state.update(process=p,conn=recv,isBase=mode=='base',error=None)
                         self.send(200,{'started':True});return
                     if path=='/cancel':cancel();state['error']=None;self.send(200,{'ok':True});return
-                    if path=='/invalidate':cancel();state.update(result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None);self.send(200,{'ok':True});return
+                    if path=='/invalidate':cancel();state.update(result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None);self.send(200,{'ok':True});return
                     if path=='/reset':
                         cancel()
                         if not state['baseTotal']:raise ValueError('אין שיבוץ בסיס.')
-                        state.update(result=state['baseResult'],output=state['baseOutput'],error=None,envelope=None,envelopePath=None,envelopeMeta=None);self.send(200,{'ok':True});return
+                        state.update(result=state['baseResult'],output=state['baseOutput'],error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None);self.send(200,{'ok':True});return
+                    if path=='/matrix-pdf':
+                        if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
+                        if not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת המטריצה.')
+                        pdf,meta=create_matrix_pdf(state['result'],base)
+                        output_dir.mkdir(parents=True,exist_ok=True)
+                        stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                        target=output_dir/f'teachers_rooms_matrix_{stamp}.pdf';target.write_bytes(pdf)
+                        state.update(matrixPdf=pdf,matrixPdfPath=target,matrixPdfMeta=meta)
+                        self.send(200,{**meta,'filename':target.name,'path':str(target)});return
+                    if path=='/teacher-reports':
+                        if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
+                        if not state.get('book') or not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת דוחות המורים.')
+                        payload=json.loads(raw or b'{}');labels=payload.get('roomLabels')
+                        if not isinstance(labels,dict):raise ValueError('יש להזין את מספרי חדרי הבחינה.')
+                        try:room_labels={int(key):value for key,value in labels.items()}
+                        except (TypeError,ValueError):raise ValueError('מיפוי מספרי חדרי הבחינה אינו תקין.')
+                        archive,reports,meta=create_teacher_reports(state['book'],state['result'],room_labels,base)
+                        output_dir.mkdir(parents=True,exist_ok=True)
+                        stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                        report_dir=output_dir/f'teacher_reports_{stamp}';report_dir.mkdir()
+                        for report_name,report_data in reports.items():(report_dir/report_name).write_bytes(report_data)
+                        zip_target=output_dir/f'teacher_reports_{stamp}.zip';zip_target.write_bytes(archive)
+                        state.update(teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta)
+                        self.send(200,{**meta,'filename':zip_target.name,'path':str(report_dir)});return
                     if path=='/envelopes':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
                         if not state.get('book') or not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת מעטפות.')
@@ -108,9 +138,9 @@ def main():
                         target=output_dir/f'exam_envelopes_{stamp}.pdf';target.write_bytes(pdf)
                         state.update(envelope=pdf,envelopePath=target,envelopeMeta=meta)
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
-                    if path in ['/open-pdf','/open-output']:
-                        target=state.get('envelopePath') if path=='/open-pdf' else output_dir
-                        if path=='/open-pdf' and (not target or not Path(target).exists()):raise ValueError('לא נמצא קובץ PDF לפתיחה.')
+                    if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports','/open-output']:
+                        target=state.get('envelopePath') if path=='/open-pdf' else state.get('matrixPdfPath') if path=='/open-matrix-pdf' else state.get('teacherReportsDir') if path=='/open-teacher-reports' else output_dir
+                        if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports'] and (not target or not Path(target).exists()):raise ValueError('לא נמצא קובץ או תיקיית פלט לפתיחה.')
                         if path=='/open-output':output_dir.mkdir(parents=True,exist_ok=True)
                         if os.name=='nt':os.startfile(str(target))
                         else:webbrowser.open(Path(target).resolve().as_uri())

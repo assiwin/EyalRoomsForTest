@@ -13,9 +13,9 @@
     <span class="privacy">עיבוד מקומי בלבד · Windows</span>
     <button id="exit" class="smallbutton">סגירת האפליקציה</button>
   </header>
-  <main>
+  <main id="mainScreen">
     <div class="intro">
-      <span class="eyebrow">גרסה 6</span>
+      <span class="eyebrow">גרסה 7</span>
       <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
       <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
     </div>
@@ -56,6 +56,14 @@
         <button id="report" class="secondary" hidden>הורדת דוח בדיקות</button>
         <p class="note">קובץ המקור נשאר ללא שינוי. תוצאות נוסחאות תלויות מתעדכנות בפתיחה ב־Excel.</p>
 
+        <section id="matrixCopySection" class="envelopes" hidden>
+          <hr><h2>מטריצת מורים וחדרים להדפסה</h2>
+          <p class="note">הקובץ יהיה עותק PDF של המטריצה המוצגת במסך.</p>
+          <button id="makeMatrixPdf" class="secondary">הפק מטריצת מורים וחדרים PDF</button>
+          <p id="matrixPdfStatus" class="note" role="status" aria-live="polite"></p>
+          <div id="matrixPdfSuccess" class="success" hidden><b>מטריצת המורים והחדרים מוכנה.</b><p id="matrixPdfDetails"></p><div class="button-row"><button id="downloadMatrixPdf" class="primary">הורדת PDF</button><button id="openMatrixPdf" class="secondary">פתח PDF</button><button id="openMatrixOutput" class="secondary">פתח תיקיית פלט</button></div></div>
+        </section>
+
         <section id="envelopeSection" class="envelopes" hidden>
           <hr><div class="step"><span>04</span><h2>הכנת דפי מעטפות</h2></div>
           <p class="note">נוצר עמוד A4 נפרד לכל חדר ובו רשימת הנבחנים וסיכום לפי יחידות לימוד.</p>
@@ -76,8 +84,35 @@
           <p id="pdfStatus" class="note" role="status" aria-live="polite"></p>
           <div id="pdfSuccess" class="success" hidden><b>דפי המעטפות מוכנים.</b><p id="pdfDetails"></p><div class="button-row"><button id="downloadPdf" class="primary">הורדת PDF</button><button id="openPdf" class="secondary">פתח PDF</button><button id="openOutput" class="secondary">פתח תיקיית פלט</button></div></div>
         </section>
+        <button id="next" class="primary next-button" hidden disabled>הבא: הגדרת מספרי החדרים</button>
+        <p id="nextHelp" class="help" hidden>כפתור „הבא” יופעל לאחר הפקת דפי המעטפות.</p>
       </section>
     </div>
+  </main>
+  <main id="roomMapScreen" hidden>
+    <div class="intro">
+      <span class="eyebrow">שלב 05</span>
+      <h1>הגדרת חדרי הבחינה</h1>
+      <p>התאימו לכל מספר פנימי בשיבוץ את מספר החדר הפיזי בבית הספר, ולאחר מכן הפיקו דוח נפרד לכל מורה.</p>
+    </div>
+    <section class="panel room-map-panel">
+      <div class="step"><span>05</span><h2>מספרי חדרים למבחן</h2></div>
+      <p id="roomMapSummary" class="info"></p>
+      <p class="note">כל השדות חובה, וכל חדר בחינה חייב להיות ייחודי. ניתן להזין מספר בלבד או תיאור כמו „י1 121”.</p>
+      <div id="roomMapError" class="error" role="alert" hidden></div>
+      <div class="room-map-wrap">
+        <table class="room-map-table">
+          <thead><tr><th>חדר מספר</th><th>חדר בחינה</th></tr></thead>
+          <tbody id="roomMapRows"></tbody>
+        </table>
+      </div>
+      <div class="wizard-actions">
+        <button id="back" class="secondary">חזרה לתוצאות</button>
+        <button id="makeTeacherReports" class="primary" disabled>שיבוץ תלמידים</button>
+      </div>
+      <p id="teacherReportsStatus" class="note" role="status" aria-live="polite"></p>
+      <div id="teacherReportsSuccess" class="success" hidden><b>דוחות המורים מוכנים.</b><p id="teacherReportsDetails"></p><div id="teacherFileList" class="teacher-file-list"></div><div class="button-row"><button id="downloadTeacherReports" class="primary">הורדת כל הדוחות ZIP</button><button id="openTeacherReports" class="secondary">פתח תיקיית דוחות</button><button id="backAfterReports" class="secondary">חזרה לתוצאות</button></div></div>
+    </section>
   </main>
   <footer>נוצר על ידי אסי וינברגר</footer>
   <script src="ui.js"></script>

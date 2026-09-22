@@ -1,6 +1,13 @@
-6.0
+7.0
 
 New in this version:
+- Printable PDF copy of the teachers-and-rooms matrix.
+- A new Next step after envelope generation for mapping logical rooms to physical exam rooms.
+- One separate student-and-room PDF per teacher, downloaded together as a ZIP archive.
+- Required and unique physical-room validation.
+
+Previous version 6.0:
+
 - A4 PDF envelope sheets, one page per occupied room.
 - Required exam-grade selection: י׳, י״א or י״ב.
 - Up to two room-specific notes.
