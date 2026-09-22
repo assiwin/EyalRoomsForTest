@@ -1,16 +1,15 @@
-7.0
+8.0
 
 New in this version:
+- New required opening step before Excel upload for defining exam times.
+- Start time and duration inputs for 3א, 3, 4 and 5 units.
+- Automatic end-time calculation without an extension and with 25%, 33% and 50% extensions.
+- Values from the supplied timetable are included as defaults.
+- Times are saved locally and can be edited before continuing.
+- Workflow step numbering updated through the physical-room assignment stage.
+
+Previous version 7.0:
 - Printable PDF copy of the teachers-and-rooms matrix.
 - A new Next step after envelope generation for mapping logical rooms to physical exam rooms.
 - One separate student-and-room PDF per teacher, downloaded together as a ZIP archive.
 - Required and unique physical-room validation.
-
-Previous version 6.0:
-
-- A4 PDF envelope sheets, one page per occupied room.
-- Required exam-grade selection: י׳, י״א or י״ב.
-- Up to two room-specific notes.
-- Hebrew footer credit on every application screen.
-- Printed envelope pages contain no credit and no page numbering.
-- Single-EXE Inno Setup installer project with desktop and Start Menu shortcuts.
