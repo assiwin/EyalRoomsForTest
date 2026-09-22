@@ -13,20 +13,49 @@
     <span class="privacy">עיבוד מקומי בלבד · Windows</span>
     <button id="exit" class="smallbutton">סגירת האפליקציה</button>
   </header>
-  <main id="mainScreen">
+  <main id="scheduleScreen">
     <div class="intro">
-      <span class="eyebrow">גרסה 7</span>
+      <span class="eyebrow">גרסה 8 · שלב 01</span>
+      <h1>הגדרת זמני הבחינה</h1>
+      <p>הזינו שעת התחלה ומשך בחינה לכל רמת לימוד. זמני הסיום יחושבו אוטומטית.</p>
+    </div>
+    <section class="panel schedule-panel">
+      <div class="step"><span>01</span><h2>זמני הבחינה ותוספות הזמן</h2></div>
+      <form id="scheduleForm">
+        <div class="schedule-wrap">
+          <table class="schedule-table">
+            <thead><tr><th>נתון</th><th>3א</th><th>3 יחידות</th><th>4 יחידות</th><th>5 יחידות</th></tr></thead>
+            <tbody>
+              <tr><th>שעת התחלה</th><td><input id="start-3a" data-level="3a" data-kind="start" type="time" value="10:25" required aria-label="שעת התחלה 3א"></td><td><input id="start-3" data-level="3" data-kind="start" type="time" value="08:45" required aria-label="שעת התחלה 3 יחידות"></td><td><input id="start-4" data-level="4" data-kind="start" type="time" value="08:45" required aria-label="שעת התחלה 4 יחידות"></td><td><input id="start-5" data-level="5" data-kind="start" type="time" value="10:35" required aria-label="שעת התחלה 5 יחידות"></td></tr>
+              <tr><th>משך בדקות</th><td><input id="duration-3a" data-level="3a" data-kind="duration" type="number" min="1" max="600" value="100" required aria-label="משך 3א"></td><td><input id="duration-3" data-level="3" data-kind="duration" type="number" min="1" max="600" value="100" required aria-label="משך 3 יחידות"></td><td><input id="duration-4" data-level="4" data-kind="duration" type="number" min="1" max="600" value="160" required aria-label="משך 4 יחידות"></td><td><input id="duration-5" data-level="5" data-kind="duration" type="number" min="1" max="600" value="130" required aria-label="משך 5 יחידות"></td></tr>
+              <tr><th>סיום ללא תוספת זמן</th><td id="end-3a-0">—</td><td id="end-3-0">—</td><td id="end-4-0">—</td><td id="end-5-0">—</td></tr>
+              <tr><th>תוספת 25%</th><td id="end-3a-25">—</td><td id="end-3-25">—</td><td id="end-4-25">—</td><td id="end-5-25">—</td></tr>
+              <tr><th>תוספת 33%</th><td id="end-3a-33">—</td><td id="end-3-33">—</td><td id="end-4-33">—</td><td id="end-5-33">—</td></tr>
+              <tr><th>תוספת 50%</th><td id="end-3a-50">—</td><td id="end-3-50">—</td><td id="end-4-50">—</td><td id="end-5-50">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="help">תוספות הזמן מחושבות בדקות ובעיגול כלפי מטה, בהתאם לטבלה שסופקה.</p>
+        <div class="schedule-actions"><button id="resetSchedule" type="button" class="secondary">איפוס לברירת מחדל</button><button id="continueToUpload" type="button" class="primary">שמירה והמשך לטעינת קובץ</button></div>
+      </form>
+    </section>
+  </main>
+  <main id="mainScreen" hidden>
+    <div class="intro">
+      <span class="eyebrow">גרסה 8</span>
       <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
       <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
+      <p id="scheduleSummary" class="info"></p>
+      <button id="editSchedule" type="button" class="smallbutton">עריכת זמני הבחינה</button>
     </div>
     <div class="workspace">
       <section class="panel">
-        <div class="step"><span>01</span><h2>קובץ התלמידים</h2></div>
+        <div class="step"><span>02</span><h2>קובץ התלמידים</h2></div>
         <label class="drop" id="drop"><span class="upload">↥</span><b>בחירת קובץ Excel או גרירה לכאן</b><span>XLSX או XLSM · עד 20 MB</span><input id="file" type="file" accept=".xlsx,.xlsm"></label>
         <div id="fileinfo" aria-live="polite"></div>
         <p class="note">השיבוץ מתבצע בגיליון dbase עבור תלמידים המסומנים 1 בעמודה J. שיבוצים קודמים של משתתפים יוחלפו.</p>
 
-        <div class="step"><span>02</span><h2>כללי השיבוץ</h2></div>
+        <div class="step"><span>03</span><h2>כללי השיבוץ</h2></div>
         <form id="settings">
           <div class="field"><label for="normal">תקרה רגילה לתלמידים בחדר</label><input id="normal" type="number" min="1" max="100" value="29" required></div>
           <div class="field"><label for="maximum">תקרה מרבית בחדר החורג</label><input id="maximum" type="number" min="1" max="100" value="32" required></div>
@@ -43,7 +72,7 @@
       </section>
 
       <section class="panel results">
-        <div class="step"><span>03</span><h2>תוצאות השיבוץ</h2></div>
+        <div class="step"><span>04</span><h2>תוצאות השיבוץ</h2></div>
         <div id="error" class="error" role="alert" hidden></div>
         <div id="results"><div class="empty"><span>▦</span><h3>תוצאות השיבוץ יוצגו כאן לאחר החישוב.</h3></div></div>
         <div id="adjust" hidden>
@@ -65,7 +94,7 @@
         </section>
 
         <section id="envelopeSection" class="envelopes" hidden>
-          <hr><div class="step"><span>04</span><h2>הכנת דפי מעטפות</h2></div>
+          <hr><div class="step"><span>05</span><h2>הכנת דפי מעטפות</h2></div>
           <p class="note">נוצר עמוד A4 נפרד לכל חדר ובו רשימת הנבחנים וסיכום לפי יחידות לימוד.</p>
           <div class="envelope-grid">
             <fieldset>
@@ -91,12 +120,12 @@
   </main>
   <main id="roomMapScreen" hidden>
     <div class="intro">
-      <span class="eyebrow">שלב 05</span>
+      <span class="eyebrow">שלב 06</span>
       <h1>הגדרת חדרי הבחינה</h1>
       <p>התאימו לכל מספר פנימי בשיבוץ את מספר החדר הפיזי בבית הספר, ולאחר מכן הפיקו דוח נפרד לכל מורה.</p>
     </div>
     <section class="panel room-map-panel">
-      <div class="step"><span>05</span><h2>מספרי חדרים למבחן</h2></div>
+      <div class="step"><span>06</span><h2>מספרי חדרים למבחן</h2></div>
       <p id="roomMapSummary" class="info"></p>
       <p class="note">כל השדות חובה, וכל חדר בחינה חייב להיות ייחודי. ניתן להזין מספר בלבד או תיאור כמו „י1 121”.</p>
       <div id="roomMapError" class="error" role="alert" hidden></div>
