@@ -1,6 +1,7 @@
-11.1.0
+11.2.0
 
 New in this version:
+- Restores the complete locked assignment, settings, grade selection, room mapping and downloadable workbook after restarting and loading the same source file.
 - Fixed lock persistence: reopening the app and loading the same original workbook now restores the locked state from local application data.
 - Added an A4 reading-accommodation PDF for active students marked "כן" in column F.
 - The reading list contains student name, internal room number and physical exam room.

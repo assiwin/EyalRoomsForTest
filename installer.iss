@@ -1,5 +1,5 @@
 #define MyAppName "אפליקציה לשיבוץ חדרים לנבחנים"
-#define MyAppVersion "11.1.0"
+#define MyAppVersion "11.2.0"
 #define MyAppPublisher "Assi Vinberger"
 #define MyAppExeName "ExamRoomApp.exe"
 
@@ -15,7 +15,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=installer_output
-OutputBaseFilename=ExamRoomApp_Setup_v11_1
+OutputBaseFilename=ExamRoomApp_Setup_v11_2
 SetupIconFile=assets\app_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
