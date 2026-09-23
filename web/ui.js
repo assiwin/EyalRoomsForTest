@@ -19,26 +19,15 @@ function applySchedule(value){
   updateSchedule();
 }
 function updateSchedule(){
-  const value=readSchedule();
+  const value=readSchedule(),valid=$('scheduleForm').checkValidity();
   for(const level of scheduleLevels)for(const extra of scheduleExtras)$('end-'+level+'-'+extra).textContent=scheduleEnd(value[level].start,value[level].duration,extra);
-  $('continueToUpload').disabled=!$('scheduleForm').checkValidity();
-}
-function scheduleSummary(){
-  const labels={'3a':'3א',3:'3 יח׳',4:'4 יח׳',5:'5 יח׳'};
-  $('scheduleSummary').textContent='זמני הבחינה: '+scheduleLevels.map(level=>labels[level]+' '+examSchedule[level].start+'–'+scheduleEnd(examSchedule[level].start,examSchedule[level].duration,0)).join(' · ');
-}
-function showSchedule(){
-  $('mainScreen').hidden=true;$('roomMapScreen').hidden=true;$('scheduleScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'});
-}
-function continueToUpload(){
-  if(!$('scheduleForm').reportValidity())return;
-  examSchedule=readSchedule();localStorage.setItem('exam-room-schedule-v8',JSON.stringify(examSchedule));scheduleSummary();
-  $('scheduleScreen').hidden=true;$('mainScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'});
+  examSchedule=valid?value:null;
+  if(valid){localStorage.setItem('exam-room-schedule-v8',JSON.stringify(value));$('scheduleSaveStatus').textContent='הזמנים נשמרו במחשב.'}
+  else $('scheduleSaveStatus').textContent='יש להשלים שעת התחלה ומשך תקינים לכל רמה.';
+  controls();
 }
 $('scheduleForm').oninput=updateSchedule;
-$('continueToUpload').onclick=continueToUpload;
 $('resetSchedule').onclick=()=>{localStorage.removeItem('exam-room-schedule-v8');applySchedule(scheduleDefaults)};
-$('editSchedule').onclick=showSchedule;
 try{applySchedule(JSON.parse(localStorage.getItem('exam-room-schedule-v8'))||scheduleDefaults)}catch{applySchedule(scheduleDefaults)}
 
 async function api(path,body,raw=false){
@@ -63,8 +52,8 @@ function envelopeControls(){
   $('addNote').disabled=busy||pdfBusy||noteRows().length>=2;
 }
 function controls(){
-  const valid=loaded&&$('settings').checkValidity()&&Number($('normal').value)<=Number($('maximum').value);
-  $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input').forEach(e=>e.disabled=busy);$('file').disabled=busy;
+  const scheduleValid=$('scheduleForm').checkValidity(),valid=loaded&&scheduleValid&&$('settings').checkValidity()&&Number($('normal').value)<=Number($('maximum').value);
+  $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input').forEach(e=>e.disabled=busy);$('file').disabled=busy||!scheduleValid;
   $('download').disabled=busy;$('report').disabled=busy;$('reset').disabled=busy;$('next').disabled=busy||!pdfInfo;$('nextHelp').hidden=!result||!!pdfInfo;target();envelopeControls();
 }
 function target(){const n=Number($('delta').value),sign=document.querySelector('input[name=op]:checked').value==='add'?1:-1;const t=baseTotal+sign*n;$('target').textContent=baseTotal?`בסיס: ${baseTotal} חדרים · יעד מבוקש: ${t}`:'';$('rebalance').disabled=busy||!baseTotal||!Number.isInteger(n)||n<1||t<1||t>Number($('limit').value)}
