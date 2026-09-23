@@ -1,5 +1,5 @@
 #define MyAppName "אפליקציה לשיבוץ חדרים לנבחנים"
-#define MyAppVersion "8.0.0"
+#define MyAppVersion "9.0.0"
 #define MyAppPublisher "Assi Vinberger"
 #define MyAppExeName "ExamRoomApp.exe"
 
@@ -15,9 +15,10 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=installer_output
-OutputBaseFilename=ExamRoomApp_Setup_v8
+OutputBaseFilename=ExamRoomApp_Setup_v9
 SetupIconFile=assets\app_icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayName={#MyAppName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -43,26 +44,45 @@ Name: "{app}\Output"; Permissions: users-modify
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\הסרת {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "הפעל את האפליקציה"; Flags: nowait postinstall skipifsilent
 
 [Code]
+const
+  PreviousUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{F04DC68D-4D3C-4B9D-A67C-0E909EE67436}_is1';
+
+function FindPreviousUninstaller(var Uninstaller: String): Boolean;
+begin
+  Result :=
+    RegQueryStringValue(HKCU, PreviousUninstallKey, 'UninstallString', Uninstaller) or
+    RegQueryStringValue(HKLM64, PreviousUninstallKey, 'UninstallString', Uninstaller) or
+    RegQueryStringValue(HKLM32, PreviousUninstallKey, 'UninstallString', Uninstaller);
+  if Result then
+    Uninstaller := RemoveQuotes(Uninstaller);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
-  CreditLabel: TNewStaticText;
+  Uninstaller: String;
+  ResultCode: Integer;
+begin
+  Result := '';
+  if FindPreviousUninstaller(Uninstaller) and FileExists(Uninstaller) then
+  begin
+    WizardForm.StatusLabel.Caption := 'מסיר גרסה קודמת של האפליקציה...';
+    if not Exec(Uninstaller, '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART', '',
+      SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      Result := 'לא ניתן להפעיל את מסיר ההתקנה של הגרסה הקודמת.'
+    else if ResultCode <> 0 then
+      Result := Format('הסרת הגרסה הקודמת נכשלה (קוד %d).', [ResultCode]);
+  end;
+end;
 
 procedure InitializeWizard;
 begin
   WizardForm.Caption := '{#MyAppName} — התקנה';
-  CreditLabel := TNewStaticText.Create(WizardForm);
-  CreditLabel.Parent := WizardForm;
-  CreditLabel.Caption := 'נוצר על ידי אסי וינברגר';
-  CreditLabel.AutoSize := False;
-  CreditLabel.Width := WizardForm.ClientWidth - ScaleX(40);
-  CreditLabel.Left := ScaleX(20);
-  CreditLabel.Top := WizardForm.ClientHeight - ScaleY(24);
-  CreditLabel.Alignment := taCenter;
-  CreditLabel.Font.Color := clGray;
 end;
 
 procedure CurPageChanged(CurPageID: Integer);

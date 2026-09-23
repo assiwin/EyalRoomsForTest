@@ -32,7 +32,7 @@ echo [5/5] Creating one installer EXE...
 "%ISCC_PATH%" installer.iss
 if errorlevel 1 goto fail
 echo.
-echo Ready: installer_output\ExamRoomApp_Setup_v8.exe
+echo Ready: installer_output\ExamRoomApp_Setup_v9.exe
 echo Test the installer on a clean Windows 10 or 11 64-bit computer before distribution.
 pause
 exit /b 0

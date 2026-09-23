@@ -40,6 +40,7 @@ async function api(path,body,raw=false){
 function error(s){$('error').hidden=!s;$('error').textContent=s||''}
 function cfg(){const c={special:{}};for(const k of ['normal','maximum','percent','level','limit'])c[k]=Number($(k).value);document.querySelectorAll('[data-special]').forEach(e=>c.special[e.dataset.special]=Number(e.value));return c}
 function selectedGrade(){return document.querySelector('input[name=grade]:checked')?.value||''}
+function updateGradeDisplay(){$('selectedGradeDisplay').textContent=selectedGrade()||'טרם נבחרה'}
 function noteRows(){return [...document.querySelectorAll('.note-row')]}
 function noteValid(){return noteRows().every(row=>{const room=row.querySelector('.note-room').value,text=row.querySelector('.note-text').value.trim();return (!room&&!text)||(room&&text&&text.length<=120)})}
 function invalidatePdf(){pdfInfo=null;$('pdfSuccess').hidden=true;$('pdfStatus').textContent='';envelopeControls()}
@@ -136,7 +137,7 @@ $('makeTeacherReports').onclick=async()=>{
 $('downloadTeacherReports').onclick=async()=>{try{save(await api('/download-teacher-reports'),teacherReportsInfo?.filename||'teacher_room_assignments.zip')}catch(e){setRoomMapError(e.message)}};
 $('openTeacherReports').onclick=async()=>{try{await api('/open-teacher-reports',{})}catch(e){setRoomMapError(e.message)}};
 
-$('addNote').onclick=addNoteRow;document.querySelectorAll('input[name=grade]').forEach(x=>x.onchange=invalidatePdf);
+$('addNote').onclick=addNoteRow;document.querySelectorAll('input[name=grade]').forEach(x=>x.onchange=()=>{updateGradeDisplay();invalidatePdf();controls()});
 $('makePdf').onclick=async()=>{
   try{const grade=selectedGrade();if(!grade)throw Error('יש לבחור שכבת מבחן.');const notes=collectNotes();pdfBusy=true;envelopeControls();error('');$('pdfSuccess').hidden=true;$('pdfStatus').textContent='מכין דפי מעטפות…';pdfInfo=await api('/envelopes',{grade,notes});$('pdfDetails').textContent=`${pdfInfo.rooms} חדרים · ${pdfInfo.students} נבחנים · ${pdfInfo.pages} עמודים · נשמר גם בתיקיית Output`;$('pdfSuccess').hidden=false;$('pdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה.'}
   catch(e){error(e.message);$('pdfStatus').textContent='הפקת דפי המעטפות נכשלה.'}
@@ -147,4 +148,4 @@ $('openPdf').onclick=async()=>{try{await api('/open-pdf',{})}catch(e){error(e.me
 $('openOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){error(e.message)}};
 $('exit').onclick=async()=>{if(!confirm('לסגור את האפליקציה המקומית? הורידו קודם את התוצאה הרצויה.'))return;await api('/shutdown',{});document.body.innerHTML='<main><h1>האפליקציה נסגרה</h1><p>אפשר לסגור את הלשונית.</p><footer>נוצר על ידי אסי וינברגר</footer></main>'};
 
-addNoteRow();controls();
+updateGradeDisplay();addNoteRow();controls();

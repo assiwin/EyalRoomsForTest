@@ -15,9 +15,18 @@
   </header>
   <main id="mainScreen">
     <div class="intro">
-      <span class="eyebrow">גרסה 8</span>
+      <span class="eyebrow">גרסה 9</span>
       <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
       <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
+      <section class="exam-grade-picker" aria-labelledby="gradeTitle">
+        <b id="gradeTitle">מבחן שכבה</b>
+        <div class="grade-options" role="radiogroup" aria-label="מבחן שכבה">
+          <label><input type="radio" name="grade" value="י׳"> י׳</label>
+          <label><input type="radio" name="grade" value="י״א"> י״א</label>
+          <label><input type="radio" name="grade" value="י״ב"> י״ב</label>
+        </div>
+        <span class="help">הבחירה תופיע בכל דפי המעטפות.</span>
+      </section>
       <section class="schedule-compact" aria-labelledby="scheduleTitle">
         <div class="schedule-compact-header"><div><b id="scheduleTitle">חישובי זמני הבחינה</b><span>עריכת שעת ההתחלה או המשך מעדכנת ושומרת מיד</span></div><button id="resetSchedule" type="button" class="smallbutton">איפוס</button></div>
         <form id="scheduleForm">
@@ -86,12 +95,8 @@
         <section id="envelopeSection" class="envelopes" hidden>
           <hr><div class="step"><span>05</span><h2>הכנת דפי מעטפות</h2></div>
           <p class="note">נוצר עמוד A4 נפרד לכל חדר ובו רשימת הנבחנים וסיכום לפי יחידות לימוד.</p>
-          <div class="envelope-grid">
-            <fieldset>
-              <legend>מבחן שכבה</legend>
-              <div class="grade-options" role="radiogroup" aria-label="מבחן שכבה"><label><input type="radio" name="grade" value="י׳"> י׳</label><label><input type="radio" name="grade" value="י״א"> י״א</label><label><input type="radio" name="grade" value="י״ב"> י״ב</label></div>
-              <p class="help">בחירת השכבה היא חובה ותופיע בכל דפי המעטפות.</p>
-            </fieldset>
+          <div class="envelope-grid envelope-grid-single">
+            <div class="selected-grade-summary info">מבחן שכבה שנבחר: <b id="selectedGradeDisplay">טרם נבחרה</b></div>
             <fieldset>
               <legend>הערות לחדרים</legend>
               <div id="noteRows"></div>

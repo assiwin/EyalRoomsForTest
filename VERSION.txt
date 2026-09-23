@@ -1,15 +1,14 @@
-8.0
+9.0
 
 New in this version:
-- New required opening step before Excel upload for defining exam times.
-- Start time and duration inputs for 3א, 3, 4 and 5 units.
-- Automatic end-time calculation without an extension and with 25%, 33% and 50% extensions.
-- Values from the supplied timetable are included as defaults.
-- Times are saved locally and can be edited before continuing.
-- Workflow step numbering updated through the physical-room assignment stage.
+- Exam-grade selection moved to the main opening screen: י׳, י״א or י״ב.
+- The selected grade is shown read-only in step 05 and written to every envelope page.
+- Changing the grade invalidates previously generated envelope PDFs.
+- The installer credit overlay was removed so it cannot cover setup buttons.
+- Setup detects and silently removes an older installed version before installing Version 9.
+- An uninstall shortcut is added to the Windows Start menu.
+- Publisher and application credit remain in application metadata and application screens.
 
-Previous version 7.0:
-- Printable PDF copy of the teachers-and-rooms matrix.
-- A new Next step after envelope generation for mapping logical rooms to physical exam rooms.
-- One separate student-and-room PDF per teacher, downloaded together as a ZIP archive.
-- Required and unique physical-room validation.
+Previous version 8.0:
+- Compact editable exam-time calculator on the main screen.
+- Automatic end-time calculation with 25%, 33% and 50% extensions.
