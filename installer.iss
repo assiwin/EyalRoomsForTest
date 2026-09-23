@@ -61,10 +61,23 @@ const
 procedure StopRunningApplication;
 var
   ResultCode: Integer;
+  PowerShellArgs: String;
 begin
+  { Close all packaged application processes, including multiprocessing children. }
   Exec(ExpandConstant('{cmd}'),
     '/C taskkill /F /T /IM ExamRoomApp.exe >nul 2>&1', '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode);
+
+  { Close only legacy Python or command processes launched from this app folder. }
+  PowerShellArgs :=
+    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command ' +
+    '"$root=[Environment]::ExpandEnvironmentVariables(''%LOCALAPPDATA%\Programs\ExamRoomApp\'');' +
+    'Get-CimInstance Win32_Process | Where-Object {' +
+    '($_.Name -in @(''python.exe'',''pythonw.exe'',''cmd.exe'')) -and ' +
+    '($_.CommandLine -like (''*''+$root+''*''))' +
+    '} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"';
+  Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    PowerShellArgs, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Sleep(1000);
 end;
 
@@ -114,13 +127,24 @@ end;
 function CleanPreviousRuntime: Boolean;
 var
   AppDir: String;
+  Attempt: Integer;
 begin
   AppDir := ExpandConstant('{localappdata}\Programs\ExamRoomApp');
-  DeleteFile(AppDir + '\ExamRoomApp.exe');
-  DelTree(AppDir + '\_internal', True, True, True);
-  Result :=
-    (not FileExists(AppDir + '\ExamRoomApp.exe')) and
-    (not DirExists(AppDir + '\_internal'));
+  Result := False;
+
+  { Antivirus scanners can hold a file briefly; retry before reporting failure. }
+  for Attempt := 1 to 10 do
+  begin
+    DeleteFile(AppDir + '\ExamRoomApp.exe');
+    DelTree(AppDir + '\_internal', True, True, True);
+    if (not FileExists(AppDir + '\ExamRoomApp.exe')) and
+       (not DirExists(AppDir + '\_internal')) then
+    begin
+      Result := True;
+      Exit;
+    end;
+    Sleep(700);
+  end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;

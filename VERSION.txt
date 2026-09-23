@@ -1,7 +1,7 @@
 9.0.1
 
 New in this version:
-- Installer hotfix: force-close the old app, locate its uninstaller in registry or the install folder, remove it, wait, and clean only old runtime files while preserving Output.
+- Installer hotfix: force-close the old app and its packaged children, stop only legacy Python/cmd processes launched from the app folder, remove the previous install, and retry cleanup while preserving Output.
 - Exam-grade selection moved to the main opening screen: י׳, י״א or י״ב.
 - The selected grade is shown read-only in step 05 and written to every envelope page.
 - Changing the grade invalidates previously generated envelope PDFs.
