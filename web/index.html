@@ -13,40 +13,30 @@
     <span class="privacy">עיבוד מקומי בלבד · Windows</span>
     <button id="exit" class="smallbutton">סגירת האפליקציה</button>
   </header>
-  <main id="scheduleScreen">
-    <div class="intro">
-      <span class="eyebrow">גרסה 8 · שלב 01</span>
-      <h1>הגדרת זמני הבחינה</h1>
-      <p>הזינו שעת התחלה ומשך בחינה לכל רמת לימוד. זמני הסיום יחושבו אוטומטית.</p>
-    </div>
-    <section class="panel schedule-panel">
-      <div class="step"><span>01</span><h2>זמני הבחינה ותוספות הזמן</h2></div>
-      <form id="scheduleForm">
-        <div class="schedule-wrap">
-          <table class="schedule-table">
-            <thead><tr><th>נתון</th><th>3א</th><th>3 יחידות</th><th>4 יחידות</th><th>5 יחידות</th></tr></thead>
-            <tbody>
-              <tr><th>שעת התחלה</th><td><input id="start-3a" data-level="3a" data-kind="start" type="time" value="10:25" required aria-label="שעת התחלה 3א"></td><td><input id="start-3" data-level="3" data-kind="start" type="time" value="08:45" required aria-label="שעת התחלה 3 יחידות"></td><td><input id="start-4" data-level="4" data-kind="start" type="time" value="08:45" required aria-label="שעת התחלה 4 יחידות"></td><td><input id="start-5" data-level="5" data-kind="start" type="time" value="10:35" required aria-label="שעת התחלה 5 יחידות"></td></tr>
-              <tr><th>משך בדקות</th><td><input id="duration-3a" data-level="3a" data-kind="duration" type="number" min="1" max="600" value="100" required aria-label="משך 3א"></td><td><input id="duration-3" data-level="3" data-kind="duration" type="number" min="1" max="600" value="100" required aria-label="משך 3 יחידות"></td><td><input id="duration-4" data-level="4" data-kind="duration" type="number" min="1" max="600" value="160" required aria-label="משך 4 יחידות"></td><td><input id="duration-5" data-level="5" data-kind="duration" type="number" min="1" max="600" value="130" required aria-label="משך 5 יחידות"></td></tr>
-              <tr><th>סיום ללא תוספת זמן</th><td id="end-3a-0">—</td><td id="end-3-0">—</td><td id="end-4-0">—</td><td id="end-5-0">—</td></tr>
-              <tr><th>תוספת 25%</th><td id="end-3a-25">—</td><td id="end-3-25">—</td><td id="end-4-25">—</td><td id="end-5-25">—</td></tr>
-              <tr><th>תוספת 33%</th><td id="end-3a-33">—</td><td id="end-3-33">—</td><td id="end-4-33">—</td><td id="end-5-33">—</td></tr>
-              <tr><th>תוספת 50%</th><td id="end-3a-50">—</td><td id="end-3-50">—</td><td id="end-4-50">—</td><td id="end-5-50">—</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="help">תוספות הזמן מחושבות בדקות ובעיגול כלפי מטה, בהתאם לטבלה שסופקה.</p>
-        <div class="schedule-actions"><button id="resetSchedule" type="button" class="secondary">איפוס לברירת מחדל</button><button id="continueToUpload" type="button" class="primary">שמירה והמשך לטעינת קובץ</button></div>
-      </form>
-    </section>
-  </main>
-  <main id="mainScreen" hidden>
+  <main id="mainScreen">
     <div class="intro">
       <span class="eyebrow">גרסה 8</span>
       <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
       <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
-      <p id="scheduleSummary" class="info"></p>
-      <button id="editSchedule" type="button" class="smallbutton">עריכת זמני הבחינה</button>
+      <section class="schedule-compact" aria-labelledby="scheduleTitle">
+        <div class="schedule-compact-header"><div><b id="scheduleTitle">חישובי זמני הבחינה</b><span>עריכת שעת ההתחלה או המשך מעדכנת ושומרת מיד</span></div><button id="resetSchedule" type="button" class="smallbutton">איפוס</button></div>
+        <form id="scheduleForm">
+          <div class="schedule-wrap">
+            <table class="schedule-table">
+              <thead><tr><th>נתון</th><th>3א</th><th>3 יחידות</th><th>4 יחידות</th><th>5 יחידות</th></tr></thead>
+              <tbody>
+                <tr><th>שעת התחלה</th><td><input id="start-3a" type="time" value="10:25" required aria-label="שעת התחלה 3א"></td><td><input id="start-3" type="time" value="08:45" required aria-label="שעת התחלה 3 יחידות"></td><td><input id="start-4" type="time" value="08:45" required aria-label="שעת התחלה 4 יחידות"></td><td><input id="start-5" type="time" value="10:35" required aria-label="שעת התחלה 5 יחידות"></td></tr>
+                <tr><th>משך בדקות</th><td><input id="duration-3a" type="number" min="1" max="600" value="100" required aria-label="משך 3א"></td><td><input id="duration-3" type="number" min="1" max="600" value="100" required aria-label="משך 3 יחידות"></td><td><input id="duration-4" type="number" min="1" max="600" value="160" required aria-label="משך 4 יחידות"></td><td><input id="duration-5" type="number" min="1" max="600" value="130" required aria-label="משך 5 יחידות"></td></tr>
+                <tr><th>סיום רגיל</th><td id="end-3a-0">—</td><td id="end-3-0">—</td><td id="end-4-0">—</td><td id="end-5-0">—</td></tr>
+                <tr><th>תוספת 25%</th><td id="end-3a-25">—</td><td id="end-3-25">—</td><td id="end-4-25">—</td><td id="end-5-25">—</td></tr>
+                <tr><th>תוספת 33%</th><td id="end-3a-33">—</td><td id="end-3-33">—</td><td id="end-4-33">—</td><td id="end-5-33">—</td></tr>
+                <tr><th>תוספת 50%</th><td id="end-3a-50">—</td><td id="end-3-50">—</td><td id="end-4-50">—</td><td id="end-5-50">—</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p id="scheduleSaveStatus" class="help" role="status" aria-live="polite"></p>
+        </form>
+      </section>
     </div>
     <div class="workspace">
       <section class="panel">
