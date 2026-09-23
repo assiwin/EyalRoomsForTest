@@ -1,12 +1,10 @@
-10.0.0
+11.0.0
 
 New in this version:
-- Added the optional "בודד בשולחן" mock-exam arrangement.
-- In single-desk mode, ordinary rooms contain at most 20 students.
-- The preferred limit is 10 students from each unit category, with a controlled relaxation up to 13 when needed to reduce rooms or teacher splits.
-- Units 3 and 3א are counted as one category in single-desk mode, and more than two categories may share a room.
-- Existing reduced, separate, and class-7 room logic remains unchanged.
-- Exam-grade selection now appears inline with the main application title.
-- The exam-time calculator occupies 50% of the available desktop width and remains full width on small screens.
-- Added a "צור PDF" button to the right of Reset. The generated A4 schedule PDF is saved in Output and the folder opens automatically.
-- Installer upgraded to Version 10 while retaining previous-install cleanup and preserving Output.
+- Added an A4 reading-accommodation PDF for active students marked "כן" in column F.
+- The reading list contains student name, internal room number and physical exam room.
+- Physical-room mappings are saved in worksheet "ניהול" at A2:B26 and restored on the next upload.
+- Creating envelope PDFs locks assignment editing and records Y in cell E2; first-use/unlocked state is N.
+- Added a visible locked-state notice and a "שחרר נעילה" checkbox next to file loading.
+- Closing the app no longer displays a closing page. A heartbeat shuts down the local process after its browser tab is gone.
+- Retains all Version 10 assignment, schedule, matrix, envelope and teacher-report behavior.

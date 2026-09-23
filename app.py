@@ -1,4 +1,4 @@
-import json, os, sys, io, secrets, threading, traceback, webbrowser, multiprocessing as mp
+import json, os, sys, io, secrets, threading, traceback, webbrowser, multiprocessing as mp, time
 from datetime import datetime
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -8,6 +8,8 @@ from envelopes import create_envelopes_pdf
 from matrix_pdf import create_matrix_pdf
 from schedule_pdf import create_schedule_pdf
 from teacher_reports import create_teacher_reports
+from reading_list import create_reading_list_pdf
+from workbook_management import read_management, update_management
 
 DEBUG = os.environ.get('EXAM_ROOM_DEBUG') == '1'
 
@@ -20,7 +22,7 @@ def main():
     base=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
     app_dir=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parent
     output_dir=app_dir/'Output'
-    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'schedulePdfPath':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None}
+    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'schedulePdfPath':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None,'readingList':None,'readingListPath':None,'management':{'roomLabels':{},'locked':False},'lastHeartbeat':time.monotonic(),'heartbeatStarted':False}
     def cancel():
         p=state.get('process')
         if p is not None:
@@ -63,6 +65,8 @@ def main():
                             if not msg['ok']:state['error']=msg['error']
                         elif not p.is_alive():p.join();state['process']=None;state['error']='החישוב הופסק ללא תוצאה. ניתן לנסות שוב.'
                     self.send(200,{'busy':state['process'] is not None,'result':state['result'],'baseTotal':state['baseTotal'],'error':state.get('error')});return
+                if path=='/heartbeat':
+                    state['lastHeartbeat']=time.monotonic();state['heartbeatStarted']=True;self.send(200,{'ok':True});return
                 if path=='/download' and state.get('output'):
                     self.send(200,state['output'],'application/octet-stream');return
                 if path=='/download-pdf' and state.get('envelope'):
@@ -71,6 +75,8 @@ def main():
                     self.send(200,state['matrixPdf'],'application/pdf');return
                 if path=='/download-teacher-reports' and state.get('teacherReportsZip'):
                     self.send(200,state['teacherReportsZip'],'application/zip');return
+                if path=='/download-reading-list' and state.get('readingList'):
+                    self.send(200,state['readingList'],'application/pdf');return
             self.send(404,{'error':'לא נמצאה תוצאה.'})
         def do_POST(self):
             if not self.valid_host():return
@@ -81,13 +87,14 @@ def main():
                 raw=self.rfile.read(length);path=urlparse(self.path).path
                 with lock:
                     if path=='/upload':
-                        cancel();state.update(book=None,result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None)
+                        cancel();state.update(book=None,result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None,readingList=None,readingListPath=None)
                         name=unquote(self.headers.get('X-Filename','input.xlsx'))
                         if Path(name).suffix.lower() not in ['.xlsm','.xlsx']:raise ValueError('נדרש קובץ XLSX או XLSM.')
-                        book=read_book(raw);state.update(data=raw,book=book,name=Path(name).name)
-                        self.send(200,{'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'dedicated':book['dedicated']});return
+                        book=read_book(raw);management=read_management(raw);state.update(data=raw,book=book,name=Path(name).name,management=management)
+                        self.send(200,{'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'dedicated':book['dedicated'],'management':management});return
                     if path=='/run':
                         if not state['book']:raise ValueError('יש לטעון קובץ תחילה.')
+                        if state['management'].get('locked'):raise ValueError('המערכת נעולה לשיבוצים. סמנו „שחרר נעילה” ליד טעינת הקובץ כדי לערוך.')
                         if state['process'] is not None:raise ValueError('חישוב כבר פועל.')
                         payload=json.loads(raw);c=payload['settings'];mode=payload.get('mode','base');target=None
                         if mode!='base':
@@ -131,13 +138,16 @@ def main():
                         try:room_labels={int(key):value for key,value in labels.items()}
                         except (TypeError,ValueError):raise ValueError('מיפוי מספרי חדרי הבחינה אינו תקין.')
                         archive,reports,meta=create_teacher_reports(state['book'],state['result'],room_labels,base)
+                        reading_pdf,reading_meta=create_reading_list_pdf(state['book'],state['result'],room_labels,base)
                         output_dir.mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                         report_dir=output_dir/f'teacher_reports_{stamp}';report_dir.mkdir()
                         for report_name,report_data in reports.items():(report_dir/report_name).write_bytes(report_data)
+                        reading_target=report_dir/'reading_list.pdf';reading_target.write_bytes(reading_pdf)
                         zip_target=output_dir/f'teacher_reports_{stamp}.zip';zip_target.write_bytes(archive)
-                        state.update(teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta)
-                        self.send(200,{**meta,'filename':zip_target.name,'path':str(report_dir)});return
+                        source=state.get('output') or state['data'];updated=update_management(source,room_labels=room_labels,locked=state['management'].get('locked',False))
+                        state['management']['roomLabels']=room_labels;state.update(output=updated,teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta,readingList=reading_pdf,readingListPath=reading_target)
+                        self.send(200,{**meta,**reading_meta,'filename':zip_target.name,'readingFilename':reading_target.name,'path':str(report_dir)});return
                     if path=='/envelopes':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
                         if not state.get('book') or not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת מעטפות.')
@@ -146,8 +156,15 @@ def main():
                         output_dir.mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                         target=output_dir/f'exam_envelopes_{stamp}.pdf';target.write_bytes(pdf)
+                        source=state.get('output') or state['data'];state['output']=update_management(source,room_labels=state['management'].get('roomLabels',{}),locked=True);state['management']['locked']=True
                         state.update(envelope=pdf,envelopePath=target,envelopeMeta=meta)
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
+                    if path=='/unlock':
+                        if not state.get('book'):raise ValueError('יש לטעון קובץ תחילה.')
+                        payload=json.loads(raw or b'{}');unlocked=bool(payload.get('unlocked'))
+                        source=state.get('output') or state['data'];state['output']=update_management(source,room_labels=state['management'].get('roomLabels',{}),locked=not unlocked);state['management']['locked']=not unlocked
+                        if unlocked:state.update(envelope=None,envelopePath=None,envelopeMeta=None)
+                        self.send(200,{'locked':state['management']['locked']});return
                     if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports','/open-output']:
                         target=state.get('envelopePath') if path=='/open-pdf' else state.get('matrixPdfPath') if path=='/open-matrix-pdf' else state.get('teacherReportsDir') if path=='/open-teacher-reports' else output_dir
                         if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports'] and (not target or not Path(target).exists()):raise ValueError('לא נמצא קובץ או תיקיית פלט לפתיחה.')
@@ -164,6 +181,12 @@ def main():
                     self.send(500,{'error':f'{type(e).__name__}: {e}'})
                 else:self.send(500,{'error':'הפעולה נכשלה. נסו לטעון מחדש את הקובץ.'})
     server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
+    def heartbeat_watch():
+        while True:
+            time.sleep(10)
+            if state.get('heartbeatStarted') and time.monotonic()-state.get('lastHeartbeat',0)>120:
+                threading.Thread(target=server.shutdown,daemon=True).start();return
+    threading.Thread(target=heartbeat_watch,daemon=True).start()
     url=f'http://127.0.0.1:{server.server_port}/';print('Exam Room App: '+url,flush=True)
     if '--no-browser' not in sys.argv:threading.Timer(.5,lambda:webbrowser.open(url)).start()
     try:server.serve_forever()

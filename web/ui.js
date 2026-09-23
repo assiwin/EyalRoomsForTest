@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id),token=document.querySelector('meta[name=app-token]').content;
-let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,schedulePdfBusy=false,teacherReportsBusy=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,examSchedule=null;
+let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,schedulePdfBusy=false,teacherReportsBusy=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,examSchedule=null,appLocked=false,savedRoomLabels={};
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
@@ -41,7 +41,7 @@ async function api(path,body,raw=false){
   if(raw)headers['X-Filename']=encodeURIComponent(filename);else headers['Content-Type']='application/json';
   const r=await fetch(path,{method:body===undefined?'GET':'POST',headers,body:body===undefined?undefined:raw?body:JSON.stringify(body)});
   if(!r.ok){let message='הפעולה נכשלה';try{message=(await r.json()).error||message}catch{}throw Error(message)}
-  return ['/download','/download-pdf','/download-matrix-pdf','/download-teacher-reports'].includes(path)?r.blob():r.json();
+  return ['/download','/download-pdf','/download-matrix-pdf','/download-teacher-reports','/download-reading-list'].includes(path)?r.blob():r.json();
 }
 function error(s){$('error').hidden=!s;$('error').textContent=s||''}
 function cfg(){const c={special:{},singleDesk:$('singleDesk').value==='yes'};for(const k of ['normal','maximum','percent','level','limit'])c[k]=Number($(k).value);document.querySelectorAll('[data-special]').forEach(e=>c.special[e.dataset.special]=Number(e.value));return c}
@@ -54,20 +54,21 @@ function invalidateMatrixPdf(){matrixPdfInfo=null;$('matrixPdfSuccess').hidden=t
 function invalidateTeacherReports(){teacherReportsInfo=null;$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='';$('teacherFileList').textContent=''}
 function envelopeControls(){
   const available=!!result;$('envelopeSection').hidden=!available;
-  $('makePdf').disabled=busy||pdfBusy||!available||!selectedGrade()||!noteValid();
-  document.querySelectorAll('#envelopeSection input,#envelopeSection select,#envelopeSection button').forEach(e=>{if(e.id!=='makePdf')e.disabled=busy||pdfBusy});
-  $('addNote').disabled=busy||pdfBusy||noteRows().length>=2;
+  $('makePdf').disabled=busy||pdfBusy||appLocked||!available||!selectedGrade()||!noteValid();
+  document.querySelectorAll('#envelopeSection input,#envelopeSection select').forEach(e=>e.disabled=busy||pdfBusy||appLocked);
+  document.querySelectorAll('#envelopeSection button').forEach(e=>{if(!['makePdf','addNote'].includes(e.id))e.disabled=busy||pdfBusy});
+  $('addNote').disabled=busy||pdfBusy||appLocked||noteRows().length>=2;
 }
 function controls(){
   const scheduleValid=$('scheduleForm').checkValidity(),valid=loaded&&scheduleValid&&$('settings').checkValidity()&&Number($('normal').value)<=Number($('maximum').value);
-  $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input,select').forEach(e=>e.disabled=busy);$('file').disabled=busy||!scheduleValid;$('makeSchedulePdf').disabled=busy||schedulePdfBusy||!scheduleValid;
+  $('run').disabled=busy||!valid||appLocked;$('cancel').hidden=!busy;$('settings').querySelectorAll('input,select').forEach(e=>e.disabled=busy||appLocked);$('file').disabled=busy||!scheduleValid;$('makeSchedulePdf').disabled=busy||schedulePdfBusy||!scheduleValid;
   $('download').disabled=busy;$('report').disabled=busy;$('reset').disabled=busy;$('next').disabled=busy||!pdfInfo;$('nextHelp').hidden=!result||!!pdfInfo;target();envelopeControls();
 }
 function target(){const n=Number($('delta').value),sign=document.querySelector('input[name=op]:checked').value==='add'?1:-1;const t=baseTotal+sign*n;$('target').textContent=baseTotal?`בסיס: ${baseTotal} חדרים · יעד מבוקש: ${t}`:'';$('rebalance').disabled=busy||!baseTotal||!Number.isInteger(n)||n<1||t<1||t>Number($('limit').value)}
 
 async function upload(file){
   if(!file||busy)return;const epoch=++uploadEpoch;clearTimeout(pollTimer);loaded=false;result=null;baseTotal=null;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();error('');filename=file.name;controls();$('status').textContent='קורא ובודק את הקובץ…';
-  try{const b=await api('/upload',await file.arrayBuffer(),true);if(epoch!==uploadEpoch)return;loaded=true;$('fileinfo').innerHTML=`<b dir="ltr">${esc(filename)}</b><p>${b.records} רשומות · ${b.participants} משתתפים · ${b.records-b.participants} לא משתתפים</p>`;$('special').innerHTML=Object.entries(b.special).map(([k,n])=>`<div class="info"><b>${{K:'מצומצם 1',L:'מצומצם 2',M:'נפרד'}[k]}: ${n} תלמידים</b><div class="field"><label for="cap-${k}">קיבולת מאושרת לחדר</label><input id="cap-${k}" data-special="${k}" type="number" min="${n}" max="1000" required placeholder="—"></div><p class="note">לא יתבצע פיצול אוטומטי. הזינו רק קיבולת מאושרת.</p></div>`).join('');$('status').textContent=Object.keys(b.special).length?'הקובץ תקין. יש להזין קיבולת מאושרת לחדרים המיוחדים.':'הקובץ תקין ומוכן לחישוב.'}
+  try{const b=await api('/upload',await file.arrayBuffer(),true);if(epoch!==uploadEpoch)return;loaded=true;appLocked=!!b.management?.locked;savedRoomLabels=b.management?.roomLabels||{};$('unlockWrap').hidden=!appLocked;$('unlock').checked=false;$('lockNotice').hidden=!appLocked;document.body.classList.toggle('app-locked',appLocked);$('fileinfo').innerHTML=`<b dir="ltr">${esc(filename)}</b><p>${b.records} רשומות · ${b.participants} משתתפים · ${b.records-b.participants} לא משתתפים</p>`;$('special').innerHTML=Object.entries(b.special).map(([k,n])=>`<div class="info"><b>${{K:'מצומצם 1',L:'מצומצם 2',M:'נפרד'}[k]}: ${n} תלמידים</b><div class="field"><label for="cap-${k}">קיבולת מאושרת לחדר</label><input id="cap-${k}" data-special="${k}" type="number" min="${n}" max="1000" required placeholder="—"></div><p class="note">לא יתבצע פיצול אוטומטי. הזינו רק קיבולת מאושרת.</p></div>`).join('');$('status').textContent=appLocked?'הקובץ נטען במצב נעול. הנתונים השמורים נקראו מגיליון „ניהול”.':Object.keys(b.special).length?'הקובץ תקין. יש להזין קיבולת מאושרת לחדרים המיוחדים.':'הקובץ תקין ומוכן לחישוב.'}
   catch(e){error(e.message);$('fileinfo').textContent='';$('special').innerHTML='';$('status').textContent='לא נטען קובץ תקין.'}controls();
 }
 $('file').onchange=e=>upload(e.target.files[0]);$('drop').ondragover=e=>e.preventDefault();$('drop').ondrop=e=>{e.preventDefault();upload(e.dataTransfer.files[0])};
@@ -127,7 +128,7 @@ function updateRoomMapControls(){
 function buildRoomMap(){
   const previous=Object.fromEntries(roomMapInputs().map(input=>[input.dataset.room,input.value]));
   const rooms=result?.matrix?.rooms||[];$('roomMapSummary').textContent=`הוקצו ${rooms.length} חדרים למבחן. יש להזין ${rooms.length} מספרי חדרים פיזיים.`;
-  $('roomMapRows').innerHTML=rooms.map(room=>`<tr><td>חדר ${room}</td><td><input class="physical-room" data-room="${room}" maxlength="40" required autocomplete="off" value="${esc(previous[room]||'')}" placeholder="לדוגמה: י1 121" aria-label="חדר בחינה פיזי עבור חדר ${room}"></td></tr>`).join('');
+  $('roomMapRows').innerHTML=rooms.map(room=>`<tr><td>חדר ${room}</td><td><input class="physical-room" data-room="${room}" maxlength="40" required autocomplete="off" value="${esc(previous[room]||savedRoomLabels[room]||'')}" placeholder="לדוגמה: י1 121" aria-label="חדר בחינה פיזי עבור חדר ${room}"></td></tr>`).join('');
   roomMapInputs().forEach(input=>input.oninput=()=>{invalidateTeacherReports();setRoomMapError('');updateRoomMapControls()});invalidateTeacherReports();updateRoomMapControls();
 }
 function showRoomMap(){if(!result||!pdfInfo)return;buildRoomMap();$('mainScreen').hidden=true;$('roomMapScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
@@ -138,22 +139,26 @@ function collectRoomLabels(){
 }
 $('next').onclick=showRoomMap;$('back').onclick=showMain;$('backAfterReports').onclick=showMain;
 $('makeTeacherReports').onclick=async()=>{
-  try{const roomLabels=collectRoomLabels();teacherReportsBusy=true;updateRoomMapControls();setRoomMapError('');$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='מפיק קובץ PDF נפרד לכל מורה…';teacherReportsInfo=await api('/teacher-reports',{roomLabels});$('teacherReportsDetails').textContent=`נוצרו ${teacherReportsInfo.teachers} קובצי PDF עבור ${teacherReportsInfo.students} תלמידים.`;$('teacherFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+teacherReportsInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+'</ul>';$('teacherReportsSuccess').hidden=false;$('teacherReportsStatus').textContent='שיבוץ התלמידים לחדרים הפיזיים הסתיים בהצלחה.'}
+  try{const roomLabels=collectRoomLabels();teacherReportsBusy=true;updateRoomMapControls();setRoomMapError('');$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='מפיק דוחות מורים ורשימת הקראה…';teacherReportsInfo=await api('/teacher-reports',{roomLabels});savedRoomLabels=roomLabels;$('teacherReportsDetails').textContent=`נוצרו ${teacherReportsInfo.teachers} קובצי PDF למורים עבור ${teacherReportsInfo.students} תלמידים, ורשימת הקראה עבור ${teacherReportsInfo.readingStudents} תלמידים.`;$('teacherFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+teacherReportsInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+`<li>${esc(teacherReportsInfo.readingFilename)}</li></ul>`;$('teacherReportsSuccess').hidden=false;$('teacherReportsStatus').textContent='השיבוץ ורשימת ההקראה הופקו, ומיפוי החדרים נשמר בגיליון „ניהול”.'}
   catch(e){setRoomMapError(e.message);$('teacherReportsStatus').textContent='הפקת דוחות המורים נכשלה.'}
   finally{teacherReportsBusy=false;updateRoomMapControls()}
 };
 $('downloadTeacherReports').onclick=async()=>{try{save(await api('/download-teacher-reports'),teacherReportsInfo?.filename||'teacher_room_assignments.zip')}catch(e){setRoomMapError(e.message)}};
+$('downloadReadingList').onclick=async()=>{try{save(await api('/download-reading-list'),teacherReportsInfo?.readingFilename||'reading_list.pdf')}catch(e){setRoomMapError(e.message)}};
 $('openTeacherReports').onclick=async()=>{try{await api('/open-teacher-reports',{})}catch(e){setRoomMapError(e.message)}};
 
 $('addNote').onclick=addNoteRow;document.querySelectorAll('input[name=grade]').forEach(x=>x.onchange=()=>{updateGradeDisplay();invalidatePdf();controls()});
 $('makePdf').onclick=async()=>{
-  try{const grade=selectedGrade();if(!grade)throw Error('יש לבחור שכבת מבחן.');const notes=collectNotes();pdfBusy=true;envelopeControls();error('');$('pdfSuccess').hidden=true;$('pdfStatus').textContent='מכין דפי מעטפות…';pdfInfo=await api('/envelopes',{grade,notes});$('pdfDetails').textContent=`${pdfInfo.rooms} חדרים · ${pdfInfo.students} נבחנים · ${pdfInfo.pages} עמודים · נשמר גם בתיקיית Output`;$('pdfSuccess').hidden=false;$('pdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה.'}
+  try{const grade=selectedGrade();if(!grade)throw Error('יש לבחור שכבת מבחן.');const notes=collectNotes();pdfBusy=true;envelopeControls();error('');$('pdfSuccess').hidden=true;$('pdfStatus').textContent='מכין דפי מעטפות…';pdfInfo=await api('/envelopes',{grade,notes});appLocked=true;$('unlockWrap').hidden=false;$('unlock').checked=false;$('lockNotice').hidden=false;document.body.classList.add('app-locked');$('pdfDetails').textContent=`${pdfInfo.rooms} חדרים · ${pdfInfo.students} נבחנים · ${pdfInfo.pages} עמודים · נשמר גם בתיקיית Output`;$('pdfSuccess').hidden=false;$('pdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה. המערכת נעולה לשיבוצים.'}
   catch(e){error(e.message);$('pdfStatus').textContent='הפקת דפי המעטפות נכשלה.'}
   finally{pdfBusy=false;controls()}
 };
 $('downloadPdf').onclick=async()=>{try{save(await api('/download-pdf'),pdfInfo?.filename||'exam_envelopes.pdf')}catch(e){error(e.message)}};
 $('openPdf').onclick=async()=>{try{await api('/open-pdf',{})}catch(e){error(e.message)}};
 $('openOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){error(e.message)}};
-$('exit').onclick=async()=>{if(!confirm('לסגור את האפליקציה המקומית? הורידו קודם את התוצאה הרצויה.'))return;await api('/shutdown',{});document.body.innerHTML='<main><h1>האפליקציה נסגרה</h1><p>אפשר לסגור את הלשונית.</p><footer>נוצר על ידי אסי וינברגר</footer></main>'};
+$('unlock').onchange=async()=>{if(!$('unlock').checked)return;try{const reply=await api('/unlock',{unlocked:true});appLocked=!!reply.locked;$('unlockWrap').hidden=true;$('lockNotice').hidden=true;document.body.classList.remove('app-locked');invalidatePdf();$('status').textContent='הנעילה שוחררה. ניתן לערוך ולחשב שיבוץ מחדש.';controls()}catch(e){$('unlock').checked=false;error(e.message)}};
+$('exit').onclick=async()=>{if(!confirm('לסגור את האפליקציה המקומית? הורידו קודם את התוצאה הרצויה.'))return;try{await api('/shutdown',{})}finally{window.close()}};
+
+setInterval(()=>api('/heartbeat').catch(()=>{}),15000);api('/heartbeat').catch(()=>{});
 
 updateGradeDisplay();updateSingleDeskInfo();addNoteRow();controls();

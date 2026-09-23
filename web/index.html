@@ -15,7 +15,7 @@
   </header>
   <main id="mainScreen">
     <div class="intro">
-      <span class="eyebrow">גרסה 10</span>
+      <span class="eyebrow">גרסה 11</span>
       <div class="title-and-grade">
         <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
         <section class="title-grade-picker" aria-labelledby="gradeTitle">
@@ -52,6 +52,8 @@
       <section class="panel">
         <div class="step"><span>02</span><h2>קובץ התלמידים</h2></div>
         <label class="drop" id="drop"><span class="upload">↥</span><b>בחירת קובץ Excel או גרירה לכאן</b><span>XLSX או XLSM · עד 20 MB</span><input id="file" type="file" accept=".xlsx,.xlsm"></label>
+        <label id="unlockWrap" class="unlock-control" hidden><input id="unlock" type="checkbox"> <b>שחרר נעילה</b></label>
+        <div id="lockNotice" class="lock-notice" hidden><b>המערכת נעולה לשיבוצים.</b> הנתונים נטענו מהקובץ. כדי לבצע שינוי יש לסמן „שחרר נעילה”.</div>
         <div id="fileinfo" aria-live="polite"></div>
         <p class="note">השיבוץ מתבצע בגיליון dbase עבור תלמידים המסומנים 1 בעמודה J. שיבוצים קודמים של משתתפים יוחלפו.</p>
 
@@ -138,7 +140,7 @@
         <button id="makeTeacherReports" class="primary" disabled>שיבוץ תלמידים</button>
       </div>
       <p id="teacherReportsStatus" class="note" role="status" aria-live="polite"></p>
-      <div id="teacherReportsSuccess" class="success" hidden><b>דוחות המורים מוכנים.</b><p id="teacherReportsDetails"></p><div id="teacherFileList" class="teacher-file-list"></div><div class="button-row"><button id="downloadTeacherReports" class="primary">הורדת כל הדוחות ZIP</button><button id="openTeacherReports" class="secondary">פתח תיקיית דוחות</button><button id="backAfterReports" class="secondary">חזרה לתוצאות</button></div></div>
+      <div id="teacherReportsSuccess" class="success" hidden><b>דוחות המורים ורשימת ההקראה מוכנים.</b><p id="teacherReportsDetails"></p><div id="teacherFileList" class="teacher-file-list"></div><div class="button-row reports-buttons"><button id="downloadTeacherReports" class="primary">הורדת דוחות המורים ZIP</button><button id="downloadReadingList" class="secondary">הורדת רשימת הקראה PDF</button><button id="openTeacherReports" class="secondary">פתח תיקיית דוחות</button><button id="backAfterReports" class="secondary">חזרה לתוצאות</button></div></div>
     </section>
   </main>
   <footer>נוצר על ידי אסי וינברגר</footer>
