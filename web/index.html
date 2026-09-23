@@ -18,34 +18,35 @@
       <span class="eyebrow">גרסה 9</span>
       <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
       <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
-      <section class="exam-grade-picker" aria-labelledby="gradeTitle">
-        <b id="gradeTitle">מבחן שכבה</b>
-        <div class="grade-options" role="radiogroup" aria-label="מבחן שכבה">
-          <label><input type="radio" name="grade" value="י׳"> י׳</label>
-          <label><input type="radio" name="grade" value="י״א"> י״א</label>
-          <label><input type="radio" name="grade" value="י״ב"> י״ב</label>
-        </div>
-        <span class="help">הבחירה תופיע בכל דפי המעטפות.</span>
-      </section>
-      <section class="schedule-compact" aria-labelledby="scheduleTitle">
-        <div class="schedule-compact-header"><div><b id="scheduleTitle">חישובי זמני הבחינה</b><span>עריכת שעת ההתחלה או המשך מעדכנת ושומרת מיד</span></div><button id="resetSchedule" type="button" class="smallbutton">איפוס</button></div>
-        <form id="scheduleForm">
-          <div class="schedule-wrap">
-            <table class="schedule-table">
-              <thead><tr><th>נתון</th><th>3א</th><th>3 יחידות</th><th>4 יחידות</th><th>5 יחידות</th></tr></thead>
-              <tbody>
-                <tr><th>שעת התחלה</th><td><input id="start-3a" type="time" value="10:25" required aria-label="שעת התחלה 3א"></td><td><input id="start-3" type="time" value="08:45" required aria-label="שעת התחלה 3 יחידות"></td><td><input id="start-4" type="time" value="08:45" required aria-label="שעת התחלה 4 יחידות"></td><td><input id="start-5" type="time" value="10:35" required aria-label="שעת התחלה 5 יחידות"></td></tr>
-                <tr><th>משך בדקות</th><td><input id="duration-3a" type="number" min="1" max="600" value="100" required aria-label="משך 3א"></td><td><input id="duration-3" type="number" min="1" max="600" value="100" required aria-label="משך 3 יחידות"></td><td><input id="duration-4" type="number" min="1" max="600" value="160" required aria-label="משך 4 יחידות"></td><td><input id="duration-5" type="number" min="1" max="600" value="130" required aria-label="משך 5 יחידות"></td></tr>
-                <tr><th>סיום רגיל</th><td id="end-3a-0">—</td><td id="end-3-0">—</td><td id="end-4-0">—</td><td id="end-5-0">—</td></tr>
-                <tr><th>תוספת 25%</th><td id="end-3a-25">—</td><td id="end-3-25">—</td><td id="end-4-25">—</td><td id="end-5-25">—</td></tr>
-                <tr><th>תוספת 33%</th><td id="end-3a-33">—</td><td id="end-3-33">—</td><td id="end-4-33">—</td><td id="end-5-33">—</td></tr>
-                <tr><th>תוספת 50%</th><td id="end-3a-50">—</td><td id="end-3-50">—</td><td id="end-4-50">—</td><td id="end-5-50">—</td></tr>
-              </tbody>
-            </table>
+      <div class="exam-config-grid">
+        <section class="exam-grade-picker" aria-labelledby="gradeTitle">
+          <div class="config-card-title"><span class="config-card-icon" aria-hidden="true">01</span><div><b id="gradeTitle">מבחן שכבה</b><span>בחירת השכבה תופיע בדפי המעטפות</span></div></div>
+          <div class="grade-options" role="radiogroup" aria-label="מבחן שכבה">
+            <label><input type="radio" name="grade" value="י׳"> י׳</label>
+            <label><input type="radio" name="grade" value="י״א"> י״א</label>
+            <label><input type="radio" name="grade" value="י״ב"> י״ב</label>
           </div>
-          <p id="scheduleSaveStatus" class="help" role="status" aria-live="polite"></p>
-        </form>
-      </section>
+        </section>
+        <section class="schedule-compact" aria-labelledby="scheduleTitle">
+          <div class="schedule-compact-header"><div><b id="scheduleTitle">חישובי זמני הבחינה</b><span>שינוי שעת התחלה או משך הבחינה מעדכן ושומר מיד</span></div><button id="resetSchedule" type="button" class="smallbutton">איפוס</button></div>
+          <form id="scheduleForm">
+            <div class="schedule-wrap">
+              <table class="schedule-table">
+                <thead><tr><th>נתון</th><th>3א</th><th>3 יחידות</th><th>4 יחידות</th><th>5 יחידות</th></tr></thead>
+                <tbody>
+                  <tr class="schedule-input-row"><th>שעת התחלה</th><td><input id="start-3a" type="time" value="10:25" required aria-label="שעת התחלה 3א"></td><td><input id="start-3" type="time" value="08:45" required aria-label="שעת התחלה 3 יחידות"></td><td><input id="start-4" type="time" value="08:45" required aria-label="שעת התחלה 4 יחידות"></td><td><input id="start-5" type="time" value="10:35" required aria-label="שעת התחלה 5 יחידות"></td></tr>
+                  <tr class="schedule-input-row"><th>משך בדקות</th><td><input id="duration-3a" type="number" min="1" max="600" value="100" required aria-label="משך 3א"></td><td><input id="duration-3" type="number" min="1" max="600" value="100" required aria-label="משך 3 יחידות"></td><td><input id="duration-4" type="number" min="1" max="600" value="160" required aria-label="משך 4 יחידות"></td><td><input id="duration-5" type="number" min="1" max="600" value="130" required aria-label="משך 5 יחידות"></td></tr>
+                  <tr><th>סיום ללא תוספת</th><td id="end-3a-0">—</td><td id="end-3-0">—</td><td id="end-4-0">—</td><td id="end-5-0">—</td></tr>
+                  <tr><th>תוספת 25%</th><td id="end-3a-25">—</td><td id="end-3-25">—</td><td id="end-4-25">—</td><td id="end-5-25">—</td></tr>
+                  <tr><th>תוספת 33%</th><td id="end-3a-33">—</td><td id="end-3-33">—</td><td id="end-4-33">—</td><td id="end-5-33">—</td></tr>
+                  <tr><th>תוספת 50%</th><td id="end-3a-50">—</td><td id="end-3-50">—</td><td id="end-4-50">—</td><td id="end-5-50">—</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p id="scheduleSaveStatus" class="help" role="status" aria-live="polite"></p>
+          </form>
+        </section>
+      </div>
     </div>
     <div class="workspace">
       <section class="panel">
