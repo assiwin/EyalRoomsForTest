@@ -106,7 +106,9 @@ $('run').onclick=()=>run('base');$('rebalance').onclick=()=>run('adjust');$('del
 $('cancel').onclick=async()=>{clearTimeout(pollTimer);try{await api('/cancel',{});poll()}catch(e){error(e.message)}};
 $('reset').onclick=async()=>{try{await api('/reset',{});poll()}catch(e){error(e.message)}};
 function save(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),2000)}
-$('download').onclick=async()=>{try{save(await api('/download'),filename.replace(/\.(xlsx|xlsm)$/i,`_assigned_${result.total}rooms.$1`))}catch(e){error(e.message)}};
+async function downloadWorkbook(){try{save(await api('/download'),filename.replace(/\.(xlsx|xlsm)$/i,`_assigned_${result.total}rooms.$1`))}catch(e){error(e.message);setRoomMapError(e.message)}}
+$('download').onclick=downloadWorkbook;
+$('downloadUpdatedWorkbook').onclick=downloadWorkbook;
 $('report').onclick=()=>{const {assignments,...report}=result;save(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'}),'room-assignment-report.json')};
 
 $('makeMatrixPdf').onclick=async()=>{
@@ -139,7 +141,7 @@ function collectRoomLabels(){
 }
 $('next').onclick=showRoomMap;$('back').onclick=showMain;$('backAfterReports').onclick=showMain;
 $('makeTeacherReports').onclick=async()=>{
-  try{const roomLabels=collectRoomLabels();teacherReportsBusy=true;updateRoomMapControls();setRoomMapError('');$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='מפיק דוחות מורים ורשימת הקראה…';teacherReportsInfo=await api('/teacher-reports',{roomLabels});savedRoomLabels=roomLabels;$('teacherReportsDetails').textContent=`נוצרו ${teacherReportsInfo.teachers} קובצי PDF למורים עבור ${teacherReportsInfo.students} תלמידים, ורשימת הקראה עבור ${teacherReportsInfo.readingStudents} תלמידים.`;$('teacherFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+teacherReportsInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+`<li>${esc(teacherReportsInfo.readingFilename)}</li></ul>`;$('teacherReportsSuccess').hidden=false;$('teacherReportsStatus').textContent='השיבוץ ורשימת ההקראה הופקו, ומיפוי החדרים נשמר בגיליון „ניהול”.'}
+  try{const roomLabels=collectRoomLabels();teacherReportsBusy=true;updateRoomMapControls();setRoomMapError('');$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='מפיק דוחות מורים ורשימת הקראה…';teacherReportsInfo=await api('/teacher-reports',{roomLabels});savedRoomLabels=roomLabels;$('teacherReportsDetails').textContent=`נוצרו ${teacherReportsInfo.teachers} קובצי PDF למורים עבור ${teacherReportsInfo.students} תלמידים, ורשימת הקראה עבור ${teacherReportsInfo.readingStudents} תלמידים. יש להוריד גם את קובץ Excel המעודכן שבו נשמרו הנעילה ומספרי החדרים.`;$('teacherFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+teacherReportsInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+`<li>${esc(teacherReportsInfo.readingFilename)}</li></ul>`;$('teacherReportsSuccess').hidden=false;$('teacherReportsStatus').textContent='השיבוץ ורשימת ההקראה הופקו. הנעילה ומיפוי החדרים נשמרו בגיליון „ניהול” של קובץ Excel המעודכן.'}
   catch(e){setRoomMapError(e.message);$('teacherReportsStatus').textContent='הפקת דוחות המורים נכשלה.'}
   finally{teacherReportsBusy=false;updateRoomMapControls()}
 };

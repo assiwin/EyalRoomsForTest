@@ -1,8 +1,12 @@
-11.2.0
+12.0.0
 
 New in this version:
-- Restores the complete locked assignment, settings, grade selection, room mapping and downloadable workbook after restarting and loading the same source file.
-- Fixed lock persistence: reopening the app and loading the same original workbook now restores the locked state from local application data.
+- The downloaded workbook is the sole source of truth for lock persistence and room mappings; no local-computer session file is used.
+- Assignment room numbers remain in column I of dbase, the lock is stored in management!E2, and physical room mappings are stored in management!A2:B26.
+- Loading a workbook checks management!E2. When it contains Y, the application restores the assignment from column I and the physical room mappings from the management worksheet.
+- The downloaded workbook preserves the original workbook structure, formatting and VBA, adding only the management worksheet when the source did not already contain it.
+- Fixed worksheet XML cell ordering and range metadata to prevent Excel recovery errors when management cells already exist.
+- Added a prominent updated-workbook download button after teacher reports are produced.
 - Added an A4 reading-accommodation PDF for active students marked "כן" in column F.
 - The reading list contains student name, internal room number and physical exam room.
 - Physical-room mappings are saved in worksheet "ניהול" at A2:B26 and restored on the next upload.

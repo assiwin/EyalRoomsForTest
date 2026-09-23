@@ -1,4 +1,4 @@
-"""Local exam-room optimizer. Workbook changes are limited to participant I cells."""
+"""Local exam-room optimizer. Assignment output changes only participant I cells."""
 import io, zipfile, re, posixpath, math, time, collections, html
 import xml.etree.ElementTree as ET
 import numpy as np
@@ -44,6 +44,7 @@ def read_book(data):
                 'class':clas(cells.get('C')),'extra_time':cells.get('D',''),
                 'enlargement':cells.get('E',''),'reading':cells.get('F',''),
                 'teacher':cells.get('G',''),'unit':cells.get('H',''),
+                'assigned':cells.get('I',''),
                 'active':one(cells.get('J')),
                 'flags':[k for k in 'KLM' if one(cells.get(k))]
             })
@@ -295,6 +296,47 @@ def validate(book,c,a,R,kinds):
         if len(rs)==3:three.add(key[0])
     assert len(three)<=3
 
+def restore_result(book):
+    """Rebuild the displayed assignment solely from locked workbook column I."""
+    participants=book['participants'];assignments={}
+    for student in participants:
+        raw=norm(student.get('assigned'))
+        try:room=int(float(raw))
+        except (TypeError,ValueError):raise ValueError(f"שורה {student['row']}: הקובץ נעול אך חסר מספר חדר תקין בעמודה I.")
+        if room<1 or room>25:raise ValueError(f"שורה {student['row']}: מספר החדר בעמודה I מחוץ לטווח 1–25.")
+        assignments[student['row']]=room
+    numbers=sorted(set(assignments.values()))
+    if numbers!=list(range(1,max(numbers,default=0)+1)):raise ValueError('הקובץ נעול אך מספרי החדרים בעמודה I אינם רציפים.')
+    by_room=collections.defaultdict(list)
+    for student in participants:by_room[assignments[student['row']]].append(student)
+    kinds={};regular=[];special=[];dedicated=[];rooms=[]
+    for room in numbers:
+        members=by_room[room]
+        flags={s['flags'][0] for s in members if s['flags']}
+        classes={s['class'] for s in members if s['class'] in ['י7','יא7','יב7']}
+        if flags:
+            flag=next(iter(flags))
+            if len(flags)!=1 or any(not s['flags'] or s['flags'][0]!=flag for s in members):raise ValueError(f'חדר {room}: שיבוץ מיוחד לא עקבי בקובץ הנעול.')
+            kind={'K':'מצומצם 1','L':'מצומצם 2','M':'נפרד'}[flag];special.append(room)
+        elif classes:
+            dedicated_class=next(iter(classes))
+            if len(classes)!=1 or any(s['class']!=dedicated_class for s in members):raise ValueError(f'חדר {room}: שיבוץ כיתה ייעודית לא עקבי בקובץ הנעול.')
+            kind='כיתה '+dedicated_class;dedicated.append(room)
+        else:kind='רגיל';regular.append(room)
+        kinds[room]=kind;units=collections.Counter(s['unit'] for s in members)
+        rooms.append({'room':room,'kind':kind,'count':len(members),'units':dict(units),'overflow':kind=='רגיל' and len(members)>29})
+    groups=collections.defaultdict(list)
+    for student in participants:groups[(student['teacher'],student['unit'])].append(student)
+    matrix_rows=[];splits=[]
+    for key,members in groups.items():
+        counts=collections.Counter(assignments[s['row']] for s in members)
+        matrix_rows.append({'teacher':key[0],'unit':key[1],'total':len(members),'counts':[counts.get(room,0) for room in numbers]})
+        splits.append({'teacher':key[0],'unit':key[1],'rooms':dict(sorted(counts.items()))})
+    matrix_rows.sort(key=lambda item:(item['teacher'],item['unit']))
+    settings_value={'normal':29,'maximum':32,'percent':30,'level':16,'limit':25,'singleDesk':False,'special':{}}
+    matrix={'rooms':numbers,'rows':matrix_rows,'roomTotals':[len(by_room[r]) for r in numbers],'unitTotals':dict(collections.Counter(s['unit'] for s in participants))}
+    return {'assignments':assignments,'rooms':rooms,'matrix':matrix,'splits':splits,'participants':len(participants),'total':len(numbers),'regular':len(regular),'special':len(special),'dedicated':len(dedicated),'overflow':sum(r['overflow'] for r in rooms),'quota':math.floor(len(regular)*.3),'minimal':False,'balanced':False,'splitOptimal':False,'restored':True,'settings':settings_value}
+
 def _col(n):
     out=''
     while n:
@@ -422,15 +464,12 @@ def write_book(data,book,result):
         files={item.filename:src.read(item.filename) for item in src.infolist()}
         infos={item.filename:item for item in src.infolist()}
     files[book['path']]=text.encode()
-    s=files['xl/workbook.xml'].decode();new='<calcPr calcId="0" fullCalcOnLoad="1" forceFullCalc="1"/>'
-    s=re.sub(r'<calcPr\b[^>]*/>',new,s) if re.search(r'<calcPr\b',s) else s.replace('</workbook>',new+'</workbook>');files['xl/workbook.xml']=s.encode()
-    matrixpath=_add_matrix(data,files,result) if 'matrix' in result else None
     with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED) as dst:
         for name,b in files.items():dst.writestr(infos.get(name,name),b)
     output=out.getvalue()
     with zipfile.ZipFile(io.BytesIO(data)) as src,zipfile.ZipFile(io.BytesIO(output)) as dst:
         assert set(src.namelist()).issubset(dst.namelist())
-        allowed={book['path'],'xl/workbook.xml','xl/styles.xml','xl/_rels/workbook.xml.rels','[Content_Types].xml',matrixpath}
+        allowed={book['path']}
         for n in src.namelist():
             if n not in allowed:assert src.read(n)==dst.read(n)
             if n.endswith('vbaProject.bin'):assert src.read(n)==dst.read(n)
@@ -442,7 +481,4 @@ def write_book(data,book,result):
         assert ET.tostring(before)==ET.tostring(after)
         cells={c.attrib['r']:c for c in ET.fromstring(dst.read(book['path'])).iter(tag('c'))}
         assert all(int(cells['I'+str(r)].find('s:v',NS).text)==v for r,v in assignment.items())
-        if matrixpath:
-            mroot=ET.fromstring(dst.read(matrixpath));values=[c.find('s:v',NS) for c in mroot.iter(tag('c'))]
-            assert any(v is not None and v.text==str(result['participants']) for v in values)
     return output

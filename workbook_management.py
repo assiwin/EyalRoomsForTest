@@ -63,27 +63,61 @@ def read_management(data):
     return {'roomLabels': labels, 'locked': str(_cell_value(root, 'E2', strings)).strip().upper() == 'Y'}
 
 
-def _inline_cell(ref, value):
+def _inline_cell(ref, value, style=''):
     clean = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', str(value))
-    return f'<c r="{ref}" t="inlineStr"><is><t>{html.escape(clean)}</t></is></c>'
+    style_attr = f' s="{style}"' if style else ''
+    return f'<c r="{ref}"{style_attr} t="inlineStr"><is><t>{html.escape(clean)}</t></is></c>'
+
+
+def _column_number(ref):
+    value = 0
+    for char in re.match(r'[A-Z]+', ref).group():
+        value = value * 26 + ord(char) - 64
+    return value
 
 
 def _set_cell(xml, ref, value):
     pattern = r'<c\b(?=[^>]*\br="' + re.escape(ref) + r'")(?:[^>]*/>|[^>]*>.*?</c>)'
-    replacement = _inline_cell(ref, value)
     match = re.search(pattern, xml, re.S)
     if match:
+        style_match = re.search(r'\bs="([^"]+)"', match.group())
+        replacement = _inline_cell(ref, value, style_match.group(1) if style_match else '')
         return xml[:match.start()] + replacement + xml[match.end():]
+    replacement = _inline_cell(ref, value)
     row_number = int(re.search(r'\d+', ref).group())
     row_match = re.search(r'(<row\b[^>]*\br="' + str(row_number) + r'"[^>]*>)(.*?)(</row>)', xml, re.S)
     if row_match:
-        inner = row_match.group(2) + replacement
+        inner = row_match.group(2)
+        insert_at = len(inner)
+        new_column = _column_number(ref)
+        for cell in re.finditer(r'<c\b[^>]*\br="([A-Z]+\d+)"', inner):
+            if _column_number(cell.group(1)) > new_column:
+                insert_at = cell.start()
+                break
+        inner = inner[:insert_at] + replacement + inner[insert_at:]
         return xml[:row_match.start(2)] + inner + xml[row_match.end(2):]
     sheet_data_end = xml.find('</sheetData>')
     if sheet_data_end < 0:
         raise ValueError('מבנה גיליון ניהול אינו נתמך.')
     row_xml = f'<row r="{row_number}">{replacement}</row>'
     return xml[:sheet_data_end] + row_xml + xml[sheet_data_end:]
+
+
+def _expand_dimension(xml):
+    match = re.search(r'<dimension\b[^>]*\bref="([^"]+)"[^>]*/>', xml)
+    if not match:
+        return xml
+    refs = match.group(1).split(':')
+    first = refs[0]
+    last = refs[-1]
+    last_row = max(int(re.search(r'\d+', last).group()), 26)
+    last_column = max(_column_number(last), _column_number('E1'))
+    column = ''
+    while last_column:
+        last_column, remainder = divmod(last_column - 1, 26)
+        column = chr(65 + remainder) + column
+    replacement = match.group().replace(match.group(1), f'{first}:{column}{last_row}')
+    return xml[:match.start()] + replacement + xml[match.end():]
 
 
 def _new_sheet(files):
@@ -129,6 +163,7 @@ def update_management(data, room_labels=None, locked=None):
     if locked is not None:
         xml = _set_cell(xml, 'E1', 'נעילה')
         xml = _set_cell(xml, 'E2', 'Y' if locked else 'N')
+    xml = _expand_dimension(xml)
     files[path] = xml.encode('utf-8')
     output = io.BytesIO()
     with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as dst:
