@@ -6,6 +6,7 @@ from urllib.parse import urlparse, unquote
 from engine import read_book, solve, write_book
 from envelopes import create_envelopes_pdf
 from matrix_pdf import create_matrix_pdf
+from schedule_pdf import create_schedule_pdf
 from teacher_reports import create_teacher_reports
 
 DEBUG = os.environ.get('EXAM_ROOM_DEBUG') == '1'
@@ -19,7 +20,7 @@ def main():
     base=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
     app_dir=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parent
     output_dir=app_dir/'Output'
-    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None}
+    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'schedulePdfPath':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None}
     def cancel():
         p=state.get('process')
         if p is not None:
@@ -112,6 +113,15 @@ def main():
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                         target=output_dir/f'teachers_rooms_matrix_{stamp}.pdf';target.write_bytes(pdf)
                         state.update(matrixPdf=pdf,matrixPdfPath=target,matrixPdfMeta=meta)
+                        self.send(200,{**meta,'filename':target.name,'path':str(target)});return
+                    if path=='/schedule-pdf':
+                        payload=json.loads(raw or b'{}');pdf,meta=create_schedule_pdf(payload.get('schedule'),base)
+                        output_dir.mkdir(parents=True,exist_ok=True)
+                        stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                        target=output_dir/f'exam_times_{stamp}.pdf';target.write_bytes(pdf)
+                        state['schedulePdfPath']=target
+                        if os.name=='nt':os.startfile(str(output_dir))
+                        else:webbrowser.open(output_dir.resolve().as_uri())
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
                     if path=='/teacher-reports':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')

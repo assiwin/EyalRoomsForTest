@@ -63,10 +63,12 @@ def read_book(data):
 def settings(c):
     for k,lo,hi in [('normal',1,100),('maximum',1,100),('percent',0,100),('level',1,100),('limit',1,25)]:
         if type(c.get(k)) is not int or not lo<=c[k]<=hi:raise ValueError('הגדרה מספרית לא תקינה: '+k)
+    if type(c.get('singleDesk',False)) is not bool:raise ValueError('הגדרת בודד בשולחן אינה תקינה.')
     if c['normal']>c['maximum']:raise ValueError('התקרה הרגילה גדולה מהתקרה המרבית.')
     return c
 
 def solve(book,c,target=None):
+    if c.get('singleDesk',False):return solve_single_desk(book,c,target)
     settings(c); p=book['participants']; groups=collections.defaultdict(list); special=collections.defaultdict(list); dedicated=collections.defaultdict(list)
     for r in p:
         if r['flags']:special[r['flags'][0]].append(r)
@@ -166,6 +168,109 @@ def solve(book,c,target=None):
     splits=[{'teacher':k[0],'unit':k[1],'rooms':dict(sorted(collections.Counter(assign[s['row']] for s in rr).items()))} for k,rr in groups.items()]
     return {'assignments':assign,'rooms':rooms,'matrix':matrix,'splits':splits,'participants':len(p),'total':nr,'regular':R,'special':len(special),'dedicated':len(dedicated),'overflow':sum(r['overflow'] for r in rooms),'quota':math.floor(R*c['percent']/100),'minimal':target is None,'balanced':balanced,'splitOptimal':split_optimal,'settings':c}
 
+def solve_single_desk(book,c,target=None):
+    """Optimize the mock-exam single-desk arrangement without changing special-room rules."""
+    settings(c);p=book['participants'];groups=collections.defaultdict(list);special=collections.defaultdict(list);dedicated=collections.defaultdict(list)
+    for student in p:
+        if student['flags']:special[student['flags'][0]].append(student)
+        elif student['class'] in ['י7','יא7','יב7']:dedicated[student['class']].append(student)
+        else:groups[(student['teacher'],student['unit'])].append(student)
+    for key,members in special.items():
+        cap=c.get('special',{}).get(key)
+        if type(cap) is not int or cap<len(members):raise ValueError(f'בחדר {key} יש {len(members)} תלמידים. נדרשת קיבולת מאושרת מתאימה; לא מתבצע פיצול אוטומטי.')
+    for key,members in dedicated.items():
+        units=collections.Counter(student['unit'] for student in members)
+        if len(members)>c['maximum'] or max(units.values())>c['level'] or ('3' in units and '3א' in units):raise ValueError('הכיתה '+key+' אינה נכנסת לחדר ייעודי יחיד תחת הכללים. יש לתקן את הכללים או את הקלט.')
+
+    keys=list(groups);sizes=[len(groups[key]) for key in keys];G=len(keys);N=sum(sizes);extra=len(special)+len(dedicated)
+    category=lambda unit:'3' if unit in ('3','3א') else unit
+    totals=collections.Counter()
+    for key,size in zip(keys,sizes):totals[category(key[1])]+=size
+    lower=max([math.ceil(N/20)]+[math.ceil(value/13) for value in totals.values()]) if N else 0
+    if target is not None and (type(target) is not int or not extra<=target<=c['limit']):raise ValueError('מספר החדרים המבוקש מחוץ לטווח.')
+    candidates=[target-extra] if target is not None else range(lower,c['limit']-extra+1)
+    deadline=time.monotonic()+110;solution=None;balanced=False;split_optimal=False;ideal=True
+    for R in candidates:
+        if R<lower or R>N or (N and R<1):continue
+        if N==0:solution=(0,np.array([],dtype=int));balanced=True;split_optimal=True;break
+        categories=['3','4','5'];C=len(categories);nvar=2*G*R+C*R+2
+        X=lambda g,r:g*R+r
+        Y=lambda g,r:G*R+g*R+r
+        E=lambda u,r:2*G*R+u*R+r
+        LOW=nvar-2;HIGH=nvar-1;cons=[]
+        def add(values,lo,hi):cons.append((values,lo,hi))
+        for g,(key,size) in enumerate(zip(keys,sizes)):
+            add({X(g,r):1 for r in range(R)},size,size)
+            for r in range(R):
+                add({X(g,r):1,Y(g,r):-min(size,13)},-np.inf,0)
+                add({X(g,r):1,Y(g,r):-1},0,np.inf)
+        for r in range(R):
+            load={X(g,r):1 for g in range(G)}
+            add(load,1,20);add({**load,HIGH:-1},-np.inf,0);add({**load,LOW:-1},0,np.inf)
+            for index,unit in enumerate(categories):
+                amount={X(g,r):1 for g,key in enumerate(keys) if category(key[1])==unit}
+                add(amount,0,13)
+                add({**amount,E(index,r):-1},-np.inf,10)
+            if r<R-1:
+                add({**{X(g,r):1 for g in range(G)},**{X(g,r+1):-1 for g in range(G)}},0,np.inf)
+        upper=np.ones(nvar);upper[:G*R]=13;upper[2*G*R:2*G*R+C*R]=3;upper[-2:]=20
+        def run(cost,seconds):
+            matrix=lil_matrix((len(cons),nvar));lo=[];hi=[]
+            for row,(values,minimum,maximum) in enumerate(cons):
+                for col,value in values.items():matrix[row,col]=value
+                lo.append(minimum);hi.append(maximum)
+            return milp(cost,integrality=np.ones(nvar),bounds=Bounds(np.zeros(nvar),upper),constraints=LinearConstraint(matrix.tocsr(),lo,hi),options={'time_limit':max(1,min(seconds,deadline-time.monotonic())),'mip_rel_gap':0})
+        split_cost=np.zeros(nvar);split_cost[G*R:2*G*R]=1
+        first=run(split_cost,35)
+        if first.x is None:
+            if first.status==2:continue
+            raise ValueError('החיפוש הסתיים ללא הכרעה. לא הוכח שאין פתרון. נסו להוסיף חדר או להריץ שוב.')
+        values=np.rint(first.x).astype(int);split_optimal=first.status==0
+        used=int(sum(values[G*R:2*G*R]));add({index:1 for index in range(G*R,2*G*R)},used,used)
+        ideal_cost=np.zeros(nvar);ideal_cost[2*G*R:2*G*R+C*R]=1
+        second=run(ideal_cost,25)
+        if second.x is not None:values=np.rint(second.x).astype(int)
+        excess=int(sum(values[2*G*R:2*G*R+C*R]));ideal=excess==0
+        add({index:1 for index in range(2*G*R,2*G*R+C*R)},excess,excess)
+        balance_cost=np.zeros(nvar);balance_cost[HIGH]=1;balance_cost[LOW]=-1
+        third=run(balance_cost,20)
+        if third.x is not None:values=np.rint(third.x).astype(int);balanced=third.status==0
+        ideal=all(sum(values[X(g,r)] for g,key in enumerate(keys) if category(key[1])==unit)<=10 for unit in categories for r in range(R))
+        solution=(R,values);break
+    if solution is None:raise ValueError('אין פתרון למספר החדרים המבוקש תחת כללי בודד בשולחן.' if target is not None else 'אין פתרון במסגרת מספר החדרים המרבי עבור מצב בודד בשולחן.')
+
+    R,values=solution;assign={};kinds={}
+    for g,key in enumerate(keys):
+        position=0
+        for room in range(R):
+            count=int(values[g*R+room])
+            for student in groups[key][position:position+count]:assign[student['row']]=room+1
+            position+=count;kinds[room+1]='רגיל'
+        assert position==len(groups[key])
+    number=R
+    for class_name,members in sorted(dedicated.items()):
+        number+=1;kinds[number]='כיתה '+class_name
+        for student in members:assign[student['row']]=number
+    for key in 'KLM':
+        if key in special:
+            number+=1;kinds[number]={'K':'מצומצם 1','L':'מצומצם 2','M':'נפרד'}[key]
+            for student in special[key]:assign[student['row']]=number
+    validate(book,c,assign,R,kinds)
+    rooms=[]
+    for room in range(1,number+1):
+        members=[student for student in p if assign[student['row']]==room];units=collections.Counter(student['unit'] for student in members)
+        rooms.append({'room':room,'kind':kinds[room],'count':len(members),'units':dict(units),'overflow':False})
+    all_groups=collections.defaultdict(list)
+    for student in p:all_groups[(student['teacher'],student['unit'])].append(student)
+    order={'3':0,'3א':1,'4':2,'5':3};matrix_rows=[]
+    for key,members in sorted(all_groups.items(),key=lambda item:(item[0][0],order.get(item[0][1],9),item[0][1])):
+        counts=collections.Counter(assign[student['row']] for student in members)
+        matrix_rows.append({'teacher':key[0],'unit':key[1],'total':len(members),'counts':[counts.get(room,0) for room in range(1,number+1)]})
+    room_totals=[sum(1 for student in p if assign[student['row']]==room) for room in range(1,number+1)]
+    matrix={'rooms':list(range(1,number+1)),'rows':matrix_rows,'roomTotals':room_totals,'unitTotals':dict(collections.Counter(student['unit'] for student in p))}
+    splits=[{'teacher':key[0],'unit':key[1],'rooms':dict(sorted(collections.Counter(assign[student['row']] for student in members).items()))} for key,members in groups.items()]
+    return {'assignments':assign,'rooms':rooms,'matrix':matrix,'splits':splits,'participants':len(p),'total':number,'regular':R,'special':len(special),'dedicated':len(dedicated),'overflow':0,'quota':0,'minimal':target is None,'balanced':balanced,'splitOptimal':split_optimal,'singleDeskIdeal':ideal,'singleDesk':True,'settings':c}
+
 def validate(book,c,a,R,kinds):
     p=book['participants'];assert set(a)=={r['row'] for r in p};assert len(kinds)<=c['limit']
     rooms=collections.defaultdict(list);groups=collections.defaultdict(set);three=set()
@@ -177,8 +282,13 @@ def validate(book,c,a,R,kinds):
     over=0
     for room,rr in rooms.items():
         if room<=R:
-            u=collections.Counter(r['unit'] for r in rr);assert len(rr)<=c['maximum'] and max(u.values())<=c['level'];assert not ('3' in u and '3א' in u);over+=len(rr)>c['normal']
-    assert len([r for r in rooms if r<=R])==R and over<=math.floor(R*c['percent']/100)
+            u=collections.Counter(r['unit'] for r in rr)
+            if c.get('singleDesk',False):
+                combined=collections.Counter(('3' if unit in ('3','3א') else unit) for r in rr for unit in [r['unit']]);assert len(rr)<=20 and max(combined.values())<=13
+            else:assert len(rr)<=c['maximum'] and max(u.values())<=c['level'] and not ('3' in u and '3א' in u);over+=len(rr)>c['normal']
+    assert len([r for r in rooms if r<=R])==R
+    if not c.get('singleDesk',False):assert over<=math.floor(R*c['percent']/100)
+    if c.get('singleDesk',False):return
     for key,rs in groups.items():
         size=sum(r['teacher']==key[0] and r['unit']==key[1] and not r['flags'] and r['class'] not in ['י7','יא7','יב7'] for r in p)
         assert len(rs)<=(2 if size<=32 else 3)

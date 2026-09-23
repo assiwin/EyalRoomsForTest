@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id),token=document.querySelector('meta[name=app-token]').content;
-let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,teacherReportsBusy=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,examSchedule=null;
+let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,schedulePdfBusy=false,teacherReportsBusy=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,examSchedule=null;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
@@ -28,6 +28,12 @@ function updateSchedule(){
 }
 $('scheduleForm').oninput=updateSchedule;
 $('resetSchedule').onclick=()=>{localStorage.removeItem('exam-room-schedule-v8');applySchedule(scheduleDefaults)};
+$('makeSchedulePdf').onclick=async()=>{
+  if(!$('scheduleForm').reportValidity())return;
+  try{schedulePdfBusy=true;controls();$('scheduleSaveStatus').textContent='מפיק PDF של זמני הבחינה…';const info=await api('/schedule-pdf',{schedule:readSchedule()});$('scheduleSaveStatus').textContent=`נוצר ${info.filename}. תיקיית הפלט נפתחה.`}
+  catch(e){error(e.message);$('scheduleSaveStatus').textContent='הפקת קובץ זמני הבחינה נכשלה.'}
+  finally{schedulePdfBusy=false;controls()}
+};
 try{applySchedule(JSON.parse(localStorage.getItem('exam-room-schedule-v8'))||scheduleDefaults)}catch{applySchedule(scheduleDefaults)}
 
 async function api(path,body,raw=false){
@@ -38,7 +44,7 @@ async function api(path,body,raw=false){
   return ['/download','/download-pdf','/download-matrix-pdf','/download-teacher-reports'].includes(path)?r.blob():r.json();
 }
 function error(s){$('error').hidden=!s;$('error').textContent=s||''}
-function cfg(){const c={special:{}};for(const k of ['normal','maximum','percent','level','limit'])c[k]=Number($(k).value);document.querySelectorAll('[data-special]').forEach(e=>c.special[e.dataset.special]=Number(e.value));return c}
+function cfg(){const c={special:{},singleDesk:$('singleDesk').value==='yes'};for(const k of ['normal','maximum','percent','level','limit'])c[k]=Number($(k).value);document.querySelectorAll('[data-special]').forEach(e=>c.special[e.dataset.special]=Number(e.value));return c}
 function selectedGrade(){return document.querySelector('input[name=grade]:checked')?.value||''}
 function updateGradeDisplay(){$('selectedGradeDisplay').textContent=selectedGrade()||'טרם נבחרה'}
 function noteRows(){return [...document.querySelectorAll('.note-row')]}
@@ -54,7 +60,7 @@ function envelopeControls(){
 }
 function controls(){
   const scheduleValid=$('scheduleForm').checkValidity(),valid=loaded&&scheduleValid&&$('settings').checkValidity()&&Number($('normal').value)<=Number($('maximum').value);
-  $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input').forEach(e=>e.disabled=busy);$('file').disabled=busy||!scheduleValid;
+  $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input,select').forEach(e=>e.disabled=busy);$('file').disabled=busy||!scheduleValid;$('makeSchedulePdf').disabled=busy||schedulePdfBusy||!scheduleValid;
   $('download').disabled=busy;$('report').disabled=busy;$('reset').disabled=busy;$('next').disabled=busy||!pdfInfo;$('nextHelp').hidden=!result||!!pdfInfo;target();envelopeControls();
 }
 function target(){const n=Number($('delta').value),sign=document.querySelector('input[name=op]:checked').value==='add'?1:-1;const t=baseTotal+sign*n;$('target').textContent=baseTotal?`בסיס: ${baseTotal} חדרים · יעד מבוקש: ${t}`:'';$('rebalance').disabled=busy||!baseTotal||!Number.isInteger(n)||n<1||t<1||t>Number($('limit').value)}
@@ -65,7 +71,8 @@ async function upload(file){
   catch(e){error(e.message);$('fileinfo').textContent='';$('special').innerHTML='';$('status').textContent='לא נטען קובץ תקין.'}controls();
 }
 $('file').onchange=e=>upload(e.target.files[0]);$('drop').ondragover=e=>e.preventDefault();$('drop').ondrop=e=>{e.preventDefault();upload(e.dataTransfer.files[0])};
-$('settings').oninput=async()=>{clearTimeout(pollTimer);result=null;baseTotal=null;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();controls();try{await api('/invalidate',{})}catch(e){error(e.message)}};
+function updateSingleDeskInfo(){$('singleDeskInfo').hidden=$('singleDesk').value!=='yes'}
+$('settings').oninput=async()=>{updateSingleDeskInfo();clearTimeout(pollTimer);result=null;baseTotal=null;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();controls();try{await api('/invalidate',{})}catch(e){error(e.message)}};
 
 async function run(mode){if(!$('settings').reportValidity())return;busy=true;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();controls();error('');$('status').textContent='מחפש שיבוץ תקין ומאזן חדרים. ניתן לבטל. החיפוש מוגבל בזמן.';try{await api('/run',{settings:cfg(),mode,delta:Number($('delta').value),op:document.querySelector('input[name=op]:checked').value});poll()}catch(e){busy=false;error(e.message);controls()}}
 async function poll(){try{const s=await api('/status');busy=s.busy;if(busy){pollTimer=setTimeout(poll,700);return}result=s.result;baseTotal=s.baseTotal;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();error(s.error);$('status').textContent=s.error?(result?'הניסיון לא הצליח. התוצאה התקינה הקודמת זמינה להורדה.':'לא נוצר שיבוץ.'):result?'החישוב הסתיים והקובץ עבר בדיקת שמירה.':'החישוב בוטל.';controls()}catch(e){busy=false;error(e.message);controls()}}
@@ -75,7 +82,8 @@ function render(){
   const r=result;$('adjust').hidden=!r;$('download').hidden=!r;$('report').hidden=!r;$('envelopeSection').hidden=!r;$('matrixCopySection').hidden=!r;$('next').hidden=!r;$('nextHelp').hidden=!r||!!pdfInfo;
   if(!r){$('results').innerHTML='<div class="empty"><span>▦</span><h3>תוצאות השיבוץ יוצגו כאן לאחר החישוב.</h3></div>';return}
   const loads=r.rooms.filter(x=>x.kind==='רגיל').map(x=>x.count);
-  $('results').innerHTML=`<div class="summary"><div class="stat"><b>${r.participants}</b><span>תלמידים</span></div><div class="stat"><b>${r.total}</b><span>חדרים</span></div><div class="stat"><b>${loads.length?Math.min(...loads)+'–'+Math.max(...loads):'—'}</b><span>תפוסה בחדר רגיל</span></div></div><div class="success">כל בדיקות התקינות עברו.<br>${r.regular} רגילים · ${r.dedicated} ייעודיים · ${r.special} מיוחדים<br>${r.overflow} חדרים חורגים, מתוך מכסה של ${r.quota}</div><p class="note">${r.minimal?'מספר חדרים מינימלי הוכח.':'שיבוץ למספר החדרים שביקשת.'} ${r.balanced?'פער התפוסה המינימלי הוכח.':'נמצא פתרון תקין; מיטביות האיזון לא הוכחה בזמן החיפוש.'} ${r.splitOptimal?'פיצול הקבוצות צומצם באופן מיטבי עבור פער זה.':''}</p>${baseTotal!==r.total?`<div class="info">תוצאת הבסיס: ${baseTotal} חדרים · תוצאה נוכחית: ${r.total} חדרים</div>`:''}${matrix(r)}<details><summary>פירוט חדרים</summary><div class="tablewrap"><table><thead><tr><th>חדר</th><th>סוג</th><th>תלמידים</th><th>רמות לימוד</th><th>חריגה</th></tr></thead><tbody>${r.rooms.map(x=>`<tr><td>${x.room}</td><td>${esc(x.kind)}</td><td>${x.count}</td><td>${Object.entries(x.units).map(([u,n])=>esc(u)+': '+n).join(' · ')}</td><td>${x.overflow?'מעל '+r.settings.normal:'—'}</td></tr>`).join('')}</tbody></table></div></details><details><summary>פירוט קבוצות המורים</summary><div class="tablewrap"><table><thead><tr><th>מורה</th><th>יחידות</th><th>חדר: תלמידים</th></tr></thead><tbody>${r.splits.map(x=>`<tr><td>${esc(x.teacher)}</td><td>${esc(x.unit)}</td><td>${Object.entries(x.rooms).map(([n,c])=>n+': '+c).join(' · ')}</td></tr>`).join('')}</tbody></table></div></details>`;
+  const ruleSummary=r.singleDesk?`מצב בודד בשולחן · עד 20 תלמידים בחדר · ${r.singleDeskIdeal?'נשמר יעד של עד 10 מכל סוג יחידות':'נעשה שימוש בהקלה של עד 13 מסוג יחידות'}`:`${r.overflow} חדרים חורגים, מתוך מכסה של ${r.quota}`;
+  $('results').innerHTML=`<div class="summary"><div class="stat"><b>${r.participants}</b><span>תלמידים</span></div><div class="stat"><b>${r.total}</b><span>חדרים</span></div><div class="stat"><b>${loads.length?Math.min(...loads)+'–'+Math.max(...loads):'—'}</b><span>תפוסה בחדר רגיל</span></div></div><div class="success">כל בדיקות התקינות עברו.<br>${r.regular} רגילים · ${r.dedicated} ייעודיים · ${r.special} מיוחדים<br>${ruleSummary}</div><p class="note">${r.minimal?'מספר חדרים מינימלי הוכח.':'שיבוץ למספר החדרים שביקשת.'} ${r.balanced?'פער התפוסה המינימלי הוכח.':'נמצא פתרון תקין; מיטביות האיזון לא הוכחה בזמן החיפוש.'} ${r.splitOptimal?'פיצול הקבוצות צומצם באופן מיטבי עבור פער זה.':''}</p>${baseTotal!==r.total?`<div class="info">תוצאת הבסיס: ${baseTotal} חדרים · תוצאה נוכחית: ${r.total} חדרים</div>`:''}${matrix(r)}<details><summary>פירוט חדרים</summary><div class="tablewrap"><table><thead><tr><th>חדר</th><th>סוג</th><th>תלמידים</th><th>רמות לימוד</th><th>חריגה</th></tr></thead><tbody>${r.rooms.map(x=>`<tr><td>${x.room}</td><td>${esc(x.kind)}</td><td>${x.count}</td><td>${Object.entries(x.units).map(([u,n])=>esc(u)+': '+n).join(' · ')}</td><td>${x.overflow?'מעל '+r.settings.normal:'—'}</td></tr>`).join('')}</tbody></table></div></details><details><summary>פירוט קבוצות המורים</summary><div class="tablewrap"><table><thead><tr><th>מורה</th><th>יחידות</th><th>חדר: תלמידים</th></tr></thead><tbody>${r.splits.map(x=>`<tr><td>${esc(x.teacher)}</td><td>${esc(x.unit)}</td><td>${Object.entries(x.rooms).map(([n,c])=>n+': '+c).join(' · ')}</td></tr>`).join('')}</tbody></table></div></details>`;
   $('download').textContent=`הורדת קובץ השיבוץ — ${r.total} חדרים`;refreshRoomOptions();target();
 }
 
@@ -148,4 +156,4 @@ $('openPdf').onclick=async()=>{try{await api('/open-pdf',{})}catch(e){error(e.me
 $('openOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){error(e.message)}};
 $('exit').onclick=async()=>{if(!confirm('לסגור את האפליקציה המקומית? הורידו קודם את התוצאה הרצויה.'))return;await api('/shutdown',{});document.body.innerHTML='<main><h1>האפליקציה נסגרה</h1><p>אפשר לסגור את הלשונית.</p><footer>נוצר על ידי אסי וינברגר</footer></main>'};
 
-updateGradeDisplay();addNoteRow();controls();
+updateGradeDisplay();updateSingleDeskInfo();addNoteRow();controls();

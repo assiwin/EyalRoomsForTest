@@ -1,15 +1,12 @@
-9.0.1
+10.0.0
 
 New in this version:
-- Installer hotfix: force-close the old app and its packaged children, stop only legacy Python/cmd processes launched from the app folder, remove the previous install, and retry cleanup while preserving Output.
-- Exam-grade selection moved to the main opening screen: י׳, י״א or י״ב.
-- The selected grade is shown read-only in step 05 and written to every envelope page.
-- Changing the grade invalidates previously generated envelope PDFs.
-- The installer credit overlay was removed so it cannot cover setup buttons.
-- Setup detects and silently removes an older installed version before installing Version 9.
-- An uninstall shortcut is added to the Windows Start menu.
-- Publisher and application credit remain in application metadata and application screens.
-
-Previous version 8.0:
-- Compact editable exam-time calculator on the main screen.
-- Automatic end-time calculation with 25%, 33% and 50% extensions.
+- Added the optional "בודד בשולחן" mock-exam arrangement.
+- In single-desk mode, ordinary rooms contain at most 20 students.
+- The preferred limit is 10 students from each unit category, with a controlled relaxation up to 13 when needed to reduce rooms or teacher splits.
+- Units 3 and 3א are counted as one category in single-desk mode, and more than two categories may share a room.
+- Existing reduced, separate, and class-7 room logic remains unchanged.
+- Exam-grade selection now appears inline with the main application title.
+- The exam-time calculator occupies 50% of the available desktop width and remains full width on small screens.
+- Added a "צור PDF" button to the right of Reset. The generated A4 schedule PDF is saved in Output and the folder opens automatically.
+- Installer upgraded to Version 10 while retaining previous-install cleanup and preserving Output.

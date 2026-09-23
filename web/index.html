@@ -15,20 +15,21 @@
   </header>
   <main id="mainScreen">
     <div class="intro">
-      <span class="eyebrow">גרסה 9</span>
-      <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
-      <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
-      <div class="exam-config-grid">
-        <section class="exam-grade-picker" aria-labelledby="gradeTitle">
-          <div class="config-card-title"><span class="config-card-icon" aria-hidden="true">01</span><div><b id="gradeTitle">מבחן שכבה</b><span>בחירת השכבה תופיע בדפי המעטפות</span></div></div>
+      <span class="eyebrow">גרסה 10</span>
+      <div class="title-and-grade">
+        <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
+        <section class="title-grade-picker" aria-labelledby="gradeTitle">
+          <b id="gradeTitle">מבחן שכבה</b>
           <div class="grade-options" role="radiogroup" aria-label="מבחן שכבה">
             <label><input type="radio" name="grade" value="י׳"> י׳</label>
             <label><input type="radio" name="grade" value="י״א"> י״א</label>
             <label><input type="radio" name="grade" value="י״ב"> י״ב</label>
           </div>
         </section>
-        <section class="schedule-compact" aria-labelledby="scheduleTitle">
-          <div class="schedule-compact-header"><div><b id="scheduleTitle">חישובי זמני הבחינה</b><span>שינוי שעת התחלה או משך הבחינה מעדכן ושומר מיד</span></div><button id="resetSchedule" type="button" class="smallbutton">איפוס</button></div>
+      </div>
+      <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
+      <section class="schedule-compact" aria-labelledby="scheduleTitle">
+          <div class="schedule-compact-header"><div><b id="scheduleTitle">חישובי זמני הבחינה</b><span>שינוי שעת התחלה או משך הבחינה מעדכן ושומר מיד</span></div><div class="schedule-header-actions"><button id="makeSchedulePdf" type="button" class="smallbutton schedule-pdf-button">צור PDF</button><button id="resetSchedule" type="button" class="smallbutton">איפוס</button></div></div>
           <form id="scheduleForm">
             <div class="schedule-wrap">
               <table class="schedule-table">
@@ -45,8 +46,7 @@
             </div>
             <p id="scheduleSaveStatus" class="help" role="status" aria-live="polite"></p>
           </form>
-        </section>
-      </div>
+      </section>
     </div>
     <div class="workspace">
       <section class="panel">
@@ -62,8 +62,10 @@
           <div class="field"><label for="percent">אחוז מרבי של חדרים חורגים</label><input id="percent" type="number" min="0" max="100" value="30" required></div>
           <div class="field"><label for="level">תלמידים מאותה רמת לימוד בחדר</label><input id="level" type="number" min="1" max="100" value="16" required></div>
           <div class="field"><label for="limit">מספר חדרים מרבי כולל</label><input id="limit" type="number" min="1" max="25" value="25" required></div>
+          <div class="field select-field"><label for="singleDesk"><b>בודד בשולחן</b></label><select id="singleDesk"><option value="no" selected>לא</option><option value="yes">כן - מבחן מתכונת</option></select></div>
+          <div id="singleDeskInfo" class="info single-desk-info" hidden><b>מצב מבחן מתכונת</b><p>החדרים המיוחדים נשארים ללא שינוי. בשאר החדרים ישובצו עד 20 תלמידים, עם יעד של עד 10 מכל סוג יחידות והקלה עד 13 לצמצום חדרים ופיצולי מורים. לצורך הספירה 3 ו־3א נחשבים סוג אחד.</p></div>
           <p class="note">מכסת החריגה מחושבת מחדרים רגילים בלבד, בעיגול מטה. חדרי כיתות 7 וחדרים מיוחדים אינם נכללים.</p>
-          <details><summary>כללים נוספים</summary><ul><li>אין ערבוב 3 ו־3א בחדרים רגילים.</li><li>כל כיתת י7, יא7 או יב7 בחדר נפרד, בסוף החדרים הרגילים.</li><li>עד שני חדרים לקבוצת מורה ויחידות עם עד 32 תלמידים רגילים; עד שלושה לקבוצה גדולה יותר.</li><li>עד שלושה מורים עם קבוצות המפוצלות לשלושה חדרים.</li><li>חדרים מיוחדים לפי K, L, M, לאחר הרגילים. סוגים ריקים אינם מקבלים מספר.</li><li>מותר לערבב 3 ו־3א בחדרים המיוחדים. קיבולת כל חדר טעונה הזנה.</li><li>השורות והמאקרו נשמרים. המאקרו אינו מורץ.</li></ul></details>
+          <details><summary>כללים נוספים</summary><ul><li>במצב רגיל אין ערבוב 3 ו־3א בחדרים רגילים.</li><li>כל כיתת י7, יא7 או יב7 בחדר נפרד, בסוף החדרים הרגילים.</li><li>עד שני חדרים לקבוצת מורה ויחידות עם עד 32 תלמידים רגילים; עד שלושה לקבוצה גדולה יותר.</li><li>עד שלושה מורים עם קבוצות המפוצלות לשלושה חדרים.</li><li>חדרים מיוחדים לפי K, L, M, לאחר הרגילים. סוגים ריקים אינם מקבלים מספר.</li><li>מותר לערבב 3 ו־3א בחדרים המיוחדים. קיבולת כל חדר טעונה הזנה.</li><li>במצב „בודד בשולחן” ניתן לשלב יותר משני סוגי יחידות בחדר, ו־3 עם 3א נספרים יחד.</li><li>השורות והמאקרו נשמרים. המאקרו אינו מורץ.</li></ul></details>
           <div id="special"></div>
         </form>
         <button id="run" class="primary" disabled>חשב שיבוץ</button>
