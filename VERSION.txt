@@ -8,3 +8,4 @@ New in this version:
 - Added a visible locked-state notice and a "שחרר נעילה" checkbox next to file loading.
 - Closing the app no longer displays a closing page. A heartbeat shuts down the local process after its browser tab is gone.
 - Retains all Version 10 assignment, schedule, matrix, envelope and teacher-report behavior.
+- Windows installer artifact is published as ExamRoomApp_Setup_v11.exe.
