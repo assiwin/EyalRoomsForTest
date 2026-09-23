@@ -1,4 +1,4 @@
-import json, os, sys, io, secrets, threading, traceback, webbrowser, multiprocessing as mp, time
+import json, os, sys, io, secrets, threading, traceback, webbrowser, multiprocessing as mp, time, hashlib
 from datetime import datetime
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -22,6 +22,19 @@ def main():
     base=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
     app_dir=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parent
     output_dir=app_dir/'Output'
+    user_data_dir=(Path(os.environ.get('LOCALAPPDATA',app_dir))/'ExamRoomApp') if os.name=='nt' else app_dir/'UserData'
+    state_file=user_data_dir/'workbook_state.json'
+    def workbook_key(book):
+        stable=[(r.get('id',''),r.get('name',''),r.get('class',''),r.get('teacher',''),r.get('unit',''),r.get('active',False),r.get('flags',[])) for r in book.get('records',[])]
+        return hashlib.sha256(json.dumps(stable,ensure_ascii=False,separators=(',',':')).encode('utf-8')).hexdigest()
+    def load_local_states():
+        try:
+            value=json.loads(state_file.read_text(encoding='utf-8'))
+            return value if isinstance(value,dict) else {}
+        except (OSError,json.JSONDecodeError):return {}
+    def save_local_management(key,management):
+        values=load_local_states();values[key]={'locked':bool(management.get('locked')),'roomLabels':{str(k):str(v) for k,v in management.get('roomLabels',{}).items()}}
+        user_data_dir.mkdir(parents=True,exist_ok=True);temporary=state_file.with_suffix('.tmp');temporary.write_text(json.dumps(values,ensure_ascii=False,indent=2),encoding='utf-8');os.replace(temporary,state_file)
     token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'schedulePdfPath':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None,'readingList':None,'readingListPath':None,'management':{'roomLabels':{},'locked':False},'lastHeartbeat':time.monotonic(),'heartbeatStarted':False}
     def cancel():
         p=state.get('process')
@@ -90,7 +103,10 @@ def main():
                         cancel();state.update(book=None,result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None,readingList=None,readingListPath=None)
                         name=unquote(self.headers.get('X-Filename','input.xlsx'))
                         if Path(name).suffix.lower() not in ['.xlsm','.xlsx']:raise ValueError('נדרש קובץ XLSX או XLSM.')
-                        book=read_book(raw);management=read_management(raw);state.update(data=raw,book=book,name=Path(name).name,management=management)
+                        book=read_book(raw);key=workbook_key(book);sheet_management=read_management(raw);local=load_local_states().get(key,{})
+                        local_labels={int(k):v for k,v in local.get('roomLabels',{}).items() if str(k).isdigit()}
+                        management={'roomLabels':sheet_management.get('roomLabels') or local_labels,'locked':bool(sheet_management.get('locked') or local.get('locked'))}
+                        state.update(data=raw,book=book,name=Path(name).name,management=management,workbookKey=key)
                         self.send(200,{'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'dedicated':book['dedicated'],'management':management});return
                     if path=='/run':
                         if not state['book']:raise ValueError('יש לטעון קובץ תחילה.')
@@ -146,7 +162,7 @@ def main():
                         reading_target=report_dir/'reading_list.pdf';reading_target.write_bytes(reading_pdf)
                         zip_target=output_dir/f'teacher_reports_{stamp}.zip';zip_target.write_bytes(archive)
                         source=state.get('output') or state['data'];updated=update_management(source,room_labels=room_labels,locked=state['management'].get('locked',False))
-                        state['management']['roomLabels']=room_labels;state.update(output=updated,teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta,readingList=reading_pdf,readingListPath=reading_target)
+                        state['management']['roomLabels']=room_labels;save_local_management(state['workbookKey'],state['management']);state.update(output=updated,teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta,readingList=reading_pdf,readingListPath=reading_target)
                         self.send(200,{**meta,**reading_meta,'filename':zip_target.name,'readingFilename':reading_target.name,'path':str(report_dir)});return
                     if path=='/envelopes':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
@@ -156,13 +172,13 @@ def main():
                         output_dir.mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                         target=output_dir/f'exam_envelopes_{stamp}.pdf';target.write_bytes(pdf)
-                        source=state.get('output') or state['data'];state['output']=update_management(source,room_labels=state['management'].get('roomLabels',{}),locked=True);state['management']['locked']=True
+                        source=state.get('output') or state['data'];state['output']=update_management(source,room_labels=state['management'].get('roomLabels',{}),locked=True);state['management']['locked']=True;save_local_management(state['workbookKey'],state['management'])
                         state.update(envelope=pdf,envelopePath=target,envelopeMeta=meta)
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
                     if path=='/unlock':
                         if not state.get('book'):raise ValueError('יש לטעון קובץ תחילה.')
                         payload=json.loads(raw or b'{}');unlocked=bool(payload.get('unlocked'))
-                        source=state.get('output') or state['data'];state['output']=update_management(source,room_labels=state['management'].get('roomLabels',{}),locked=not unlocked);state['management']['locked']=not unlocked
+                        source=state.get('output') or state['data'];state['output']=update_management(source,room_labels=state['management'].get('roomLabels',{}),locked=not unlocked);state['management']['locked']=not unlocked;save_local_management(state['workbookKey'],state['management'])
                         if unlocked:state.update(envelope=None,envelopePath=None,envelopeMeta=None)
                         self.send(200,{'locked':state['management']['locked']});return
                     if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports','/open-output']:

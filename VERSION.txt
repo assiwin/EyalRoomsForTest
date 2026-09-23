@@ -1,6 +1,7 @@
-11.0.0
+11.1.0
 
 New in this version:
+- Fixed lock persistence: reopening the app and loading the same original workbook now restores the locked state from local application data.
 - Added an A4 reading-accommodation PDF for active students marked "כן" in column F.
 - The reading list contains student name, internal room number and physical exam room.
 - Physical-room mappings are saved in worksheet "ניהול" at A2:B26 and restored on the next upload.
@@ -8,4 +9,3 @@ New in this version:
 - Added a visible locked-state notice and a "שחרר נעילה" checkbox next to file loading.
 - Closing the app no longer displays a closing page. A heartbeat shuts down the local process after its browser tab is gone.
 - Retains all Version 10 assignment, schedule, matrix, envelope and teacher-report behavior.
-- Windows installer artifact is published as ExamRoomApp_Setup_v11.exe.
