@@ -48,7 +48,7 @@ def read_management(data):
         files = {item.filename: src.read(item.filename) for item in src.infolist()}
     path = _worksheet_path(files)
     if not path or path not in files:
-        return {'roomLabels': {}, 'locked': False}
+        return {'roomLabels': {}}
     root = ET.fromstring(files[path])
     strings = _shared_strings(files)
     labels = {}
@@ -60,7 +60,7 @@ def read_management(data):
                 labels[int(float(room))] = label
             except ValueError:
                 continue
-    return {'roomLabels': labels, 'locked': str(_cell_value(root, 'E2', strings)).strip().upper() == 'Y'}
+    return {'roomLabels': labels}
 
 
 def _inline_cell(ref, value, style=''):
@@ -103,20 +103,26 @@ def _set_cell(xml, ref, value):
     return xml[:sheet_data_end] + row_xml + xml[sheet_data_end:]
 
 
-def _expand_dimension(xml):
+def _delete_cell(xml, ref):
+    pattern = r'<c\b(?=[^>]*\br="' + re.escape(ref) + r'")(?:[^>]*/>|[^>]*>.*?</c>)'
+    return re.sub(pattern, '', xml, count=1, flags=re.S)
+
+
+def _refresh_dimension(xml):
     match = re.search(r'<dimension\b[^>]*\bref="([^"]+)"[^>]*/>', xml)
     if not match:
         return xml
-    refs = match.group(1).split(':')
-    first = refs[0]
-    last = refs[-1]
-    last_row = max(int(re.search(r'\d+', last).group()), 26)
-    last_column = max(_column_number(last), _column_number('E1'))
+    refs = re.findall(r'<c\b[^>]*\br="([A-Z]+\d+)"', xml)
+    if not refs:
+        new_ref = 'A1'
+        return xml[:match.start()] + match.group().replace(match.group(1), new_ref) + xml[match.end():]
+    last_row = max(int(re.search(r'\d+', ref).group()) for ref in refs)
+    last_column = max(_column_number(ref) for ref in refs)
     column = ''
     while last_column:
         last_column, remainder = divmod(last_column - 1, 26)
         column = chr(65 + remainder) + column
-    replacement = match.group().replace(match.group(1), f'{first}:{column}{last_row}')
+    replacement = match.group().replace(match.group(1), f'A1:{column}{last_row}')
     return xml[:match.start()] + replacement + xml[match.end():]
 
 
@@ -147,11 +153,15 @@ def _new_sheet(files):
     return path
 
 
-def update_management(data, room_labels=None, locked=None):
+def update_management(data, room_labels=None):
     with zipfile.ZipFile(io.BytesIO(data)) as src:
         infos = {item.filename: item for item in src.infolist()}
         files = {item.filename: src.read(item.filename) for item in src.infolist()}
-    path = _worksheet_path(files) or _new_sheet(files)
+    path = _worksheet_path(files)
+    if path is None:
+        if room_labels is None:
+            return data
+        path = _new_sheet(files)
     xml = files[path].decode('utf-8')
     xml = _set_cell(xml, 'A1', 'חדר מספר')
     xml = _set_cell(xml, 'B1', 'חדר בחינה')
@@ -160,10 +170,10 @@ def update_management(data, room_labels=None, locked=None):
         for index, room in enumerate(range(1, 26), 2):
             xml = _set_cell(xml, f'A{index}', room)
             xml = _set_cell(xml, f'B{index}', cleaned.get(room, ''))
-    if locked is not None:
-        xml = _set_cell(xml, 'E1', 'נעילה')
-        xml = _set_cell(xml, 'E2', 'Y' if locked else 'N')
-    xml = _expand_dimension(xml)
+    # Version 12 no longer has a locking mechanism. Remove legacy lock cells
+    # from workbooks created by earlier builds while preserving all other data.
+    xml = _delete_cell(_delete_cell(xml, 'E1'), 'E2')
+    xml = _refresh_dimension(xml)
     files[path] = xml.encode('utf-8')
     output = io.BytesIO()
     with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as dst:

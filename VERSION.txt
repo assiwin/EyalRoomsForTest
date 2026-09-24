@@ -1,16 +1,17 @@
 12.0.0
 
 New in this version:
-- The downloaded workbook is the sole source of truth for lock persistence and room mappings; no local-computer session file is used.
-- Assignment room numbers remain in column I of dbase, the lock is stored in management!E2, and physical room mappings are stored in management!A2:B26.
-- Loading a workbook checks management!E2. When it contains Y, the application restores the assignment from column I and the physical room mappings from the management worksheet.
+- The downloaded workbook is the sole source of truth for assignments and room mappings; no local-computer session file is used.
+- Removed the locking mechanism completely from the workbook, server and user interface.
+- Legacy lock cells management!E1:E2 are removed automatically when an older workbook is loaded and saved.
+- Assignment room numbers remain in column I of dbase, and physical room mappings are stored in management!A2:B26.
+- A valid existing assignment is restored directly from column I without requiring a lock flag.
+- The updated workbook is downloaded with the exact original filename and original XLSX/XLSM format.
 - The downloaded workbook preserves the original workbook structure, formatting and VBA, adding only the management worksheet when the source did not already contain it.
 - Fixed worksheet XML cell ordering and range metadata to prevent Excel recovery errors when management cells already exist.
 - Added a prominent updated-workbook download button after teacher reports are produced.
 - Added an A4 reading-accommodation PDF for active students marked "כן" in column F.
 - The reading list contains student name, internal room number and physical exam room.
 - Physical-room mappings are saved in worksheet "ניהול" at A2:B26 and restored on the next upload.
-- Creating envelope PDFs locks assignment editing and records Y in cell E2; first-use/unlocked state is N.
-- Added a visible locked-state notice and a "שחרר נעילה" checkbox next to file loading.
 - Closing the app no longer displays a closing page. A heartbeat shuts down the local process after its browser tab is gone.
 - Retains all Version 10 assignment, schedule, matrix, envelope and teacher-report behavior.

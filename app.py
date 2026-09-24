@@ -22,7 +22,7 @@ def main():
     base=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
     app_dir=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parent
     output_dir=app_dir/'Output'
-    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'schedulePdfPath':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None,'readingList':None,'readingListPath':None,'management':{'roomLabels':{},'locked':False},'lastHeartbeat':time.monotonic(),'heartbeatStarted':False}
+    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'schedulePdfPath':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None,'readingList':None,'readingListPath':None,'management':{'roomLabels':{}},'lastHeartbeat':time.monotonic(),'heartbeatStarted':False}
     def cancel():
         p=state.get('process')
         if p is not None:
@@ -59,7 +59,7 @@ def main():
                             msg=state['conn'].recv();p.join(timeout=1);state['process']=None;state['conn'].close()
                             if msg['ok']:
                                 try:
-                                    result=msg['result'];output=write_book(state['data'],state['book'],result);state['result']=result;state['output']=output;state['envelope']=None;state['envelopePath']=None;state['envelopeMeta']=None;state['matrixPdf']=None;state['matrixPdfPath']=None;state['matrixPdfMeta']=None;state['teacherReportsZip']=None;state['teacherReportsZipPath']=None;state['teacherReportsDir']=None;state['teacherReportsMeta']=None
+                                    result=msg['result'];output=write_book(state['data'],state['book'],result);output=update_management(output);state['result']=result;state['output']=output;state['envelope']=None;state['envelopePath']=None;state['envelopeMeta']=None;state['matrixPdf']=None;state['matrixPdfPath']=None;state['matrixPdfMeta']=None;state['teacherReportsZip']=None;state['teacherReportsZipPath']=None;state['teacherReportsDir']=None;state['teacherReportsMeta']=None
                                     if state['isBase']:state['baseTotal']=result['total'];state['baseResult']=result;state['baseOutput']=output
                                 except Exception as e:msg={'ok':False,'error':'שמירת הפלט נכשלה: '+str(e)}
                             if not msg['ok']:state['error']=msg['error']
@@ -90,12 +90,15 @@ def main():
                         cancel();state.update(book=None,result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None,readingList=None,readingListPath=None)
                         name=unquote(self.headers.get('X-Filename','input.xlsx'))
                         if Path(name).suffix.lower() not in ['.xlsm','.xlsx']:raise ValueError('נדרש קובץ XLSX או XLSM.')
-                        book=read_book(raw);management=read_management(raw);restored_result=restore_result(book) if management.get('locked') else None;base_total=restored_result.get('total') if restored_result else None
-                        state.update(data=raw,book=book,name=Path(name).name,management=management,result=restored_result,output=raw if restored_result else None,baseTotal=base_total,baseResult=restored_result,baseOutput=raw if restored_result else None)
+                        book=read_book(raw);management=read_management(raw);restored_result=None
+                        if all(str(student.get('assigned','')).strip() for student in book['participants']):
+                            try:restored_result=restore_result(book)
+                            except ValueError:restored_result=None
+                        cleaned=update_management(raw);base_total=restored_result.get('total') if restored_result else None
+                        state.update(data=cleaned,book=read_book(cleaned),name=Path(name).name,management=management,result=restored_result,output=cleaned if restored_result else None,baseTotal=base_total,baseResult=restored_result,baseOutput=cleaned if restored_result else None)
                         self.send(200,{'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'dedicated':book['dedicated'],'management':management,'restoredResult':restored_result,'baseTotal':base_total,'grade':''});return
                     if path=='/run':
                         if not state['book']:raise ValueError('יש לטעון קובץ תחילה.')
-                        if state['management'].get('locked'):raise ValueError('המערכת נעולה לשיבוצים. סמנו „שחרר נעילה” ליד טעינת הקובץ כדי לערוך.')
                         if state['process'] is not None:raise ValueError('חישוב כבר פועל.')
                         payload=json.loads(raw);c=payload['settings'];mode=payload.get('mode','base');target=None
                         if mode!='base':
@@ -146,7 +149,7 @@ def main():
                         for report_name,report_data in reports.items():(report_dir/report_name).write_bytes(report_data)
                         reading_target=report_dir/'reading_list.pdf';reading_target.write_bytes(reading_pdf)
                         zip_target=output_dir/f'teacher_reports_{stamp}.zip';zip_target.write_bytes(archive)
-                        source=state.get('output') or state['data'];updated=update_management(source,room_labels=room_labels,locked=state['management'].get('locked',False))
+                        source=state.get('output') or state['data'];updated=update_management(source,room_labels=room_labels)
                         state['management']['roomLabels']=room_labels;state.update(output=updated,teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta,readingList=reading_pdf,readingListPath=reading_target)
                         self.send(200,{**meta,**reading_meta,'filename':zip_target.name,'readingFilename':reading_target.name,'path':str(report_dir)});return
                     if path=='/envelopes':
@@ -157,15 +160,8 @@ def main():
                         output_dir.mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
                         target=output_dir/f'exam_envelopes_{stamp}.pdf';target.write_bytes(pdf)
-                        source=state.get('output') or state['data'];state['output']=update_management(source,room_labels=state['management'].get('roomLabels',{}),locked=True);state['management']['locked']=True
                         state.update(envelope=pdf,envelopePath=target,envelopeMeta=meta)
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
-                    if path=='/unlock':
-                        if not state.get('book'):raise ValueError('יש לטעון קובץ תחילה.')
-                        payload=json.loads(raw or b'{}');unlocked=bool(payload.get('unlocked'))
-                        source=state.get('output') or state['data'];state['output']=update_management(source,room_labels=state['management'].get('roomLabels',{}),locked=not unlocked);state['management']['locked']=not unlocked
-                        if unlocked:state.update(envelope=None,envelopePath=None,envelopeMeta=None)
-                        self.send(200,{'locked':state['management']['locked']});return
                     if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports','/open-output']:
                         target=state.get('envelopePath') if path=='/open-pdf' else state.get('matrixPdfPath') if path=='/open-matrix-pdf' else state.get('teacherReportsDir') if path=='/open-teacher-reports' else output_dir
                         if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports'] and (not target or not Path(target).exists()):raise ValueError('לא נמצא קובץ או תיקיית פלט לפתיחה.')
