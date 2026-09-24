@@ -1,6 +1,11 @@
-12.0.0
+13.0.0
 
 New in this version:
+- Added an initial database preparation stage with two choices: create a new classlist database or update an existing one.
+- Imports every teacher worksheet, parses teacher name and study level from A1, and maps student data into dbase while preserving XLSX/XLSM structure and VBA.
+- Existing database updates are matched by student ID, update changed name/class/teacher/unit fields, and create a log worksheet for changes and students requiring manual addition/removal review.
+- Added automatic seat assignment for every non-special exam room, with 32 seats, unit-separation rules, and front-row placement for students marked 1 in dbase column N.
+- Produces one landscape A4 PDF per eligible room and downloads all seating plans as a ZIP archive.
 - The downloaded workbook is the sole source of truth for assignments and room mappings; no local-computer session file is used.
 - Removed the locking mechanism completely from the workbook, server and user interface.
 - Legacy lock cells management!E1:E2 are removed automatically when an older workbook is loaded and saved.

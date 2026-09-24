@@ -13,9 +13,33 @@
     <span class="privacy">עיבוד מקומי בלבד · Windows</span>
     <button id="exit" class="smallbutton">סגירת האפליקציה</button>
   </header>
-  <main id="mainScreen">
+  <main id="databaseScreen">
+    <div class="intro database-intro">
+      <span class="eyebrow">גרסה 13 · שלב 01</span>
+      <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
+      <p>הכנת בסיס הנתונים לפני תחילת השיבוץ.</p>
+    </div>
+    <section class="panel database-panel">
+      <div class="step"><span>01</span><h2>טעינה ראשונית או עדכון של קובץ קיים</h2></div>
+      <div class="database-mode" role="radiogroup" aria-label="סוג עדכון בסיס הנתונים">
+        <label><input type="radio" name="databaseMode" value="new" checked><b>טעינת קובץ חדש</b><span>מילוי מחדש של גיליון dbase בקובץ classlist.</span></label>
+        <label><input type="radio" name="databaseMode" value="update"><b>עדכון קובץ קיים</b><span>עדכון שינויים והפקת גיליון log לבדיקת תלמידים חדשים או חסרים.</span></label>
+      </div>
+      <div class="database-files">
+        <label class="file-card"><b>קובץ classlist</b><span>קובץ בסיס הנתונים המכיל את הגיליונות dbase וניהול</span><input id="databaseBaseFile" type="file" accept=".xlsx,.xlsm"></label>
+        <label class="file-card"><b>קובץ נתוני המורים</b><span>קובץ שבו גיליון אחד או יותר לכל מורה; שם המורה והיחידות בתא A1</span><input id="databaseInputFile" type="file" accept=".xlsx,.xlsm"></label>
+      </div>
+      <div id="databaseError" class="error" role="alert" hidden></div>
+      <button id="processDatabase" class="primary" disabled>עדכן את בסיס הנתונים</button>
+      <p id="databaseStatus" class="note" role="status" aria-live="polite">יש לבחור שני קובצי Excel.</p>
+      <div id="databaseSuccess" class="success" hidden><b>קובץ בסיס הנתונים מוכן.</b><p id="databaseDetails"></p><div class="button-row"><button id="downloadDatabase" class="secondary">הורדת קובץ classlist המעודכן</button><button id="continueWithDatabase" class="primary">המשך לשיבוץ עם הקובץ המעודכן</button></div></div>
+      <hr>
+      <button id="skipDatabase" class="secondary">כבר יש לי קובץ classlist מוכן — המשך לשיבוץ</button>
+    </section>
+  </main>
+  <main id="mainScreen" hidden>
     <div class="intro">
-      <span class="eyebrow">גרסה 12</span>
+      <span class="eyebrow">גרסה 13</span>
       <div class="title-and-grade">
         <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
         <section class="title-grade-picker" aria-labelledby="gradeTitle">
@@ -138,7 +162,22 @@
         <button id="makeTeacherReports" class="primary" disabled>שיבוץ תלמידים</button>
       </div>
       <p id="teacherReportsStatus" class="note" role="status" aria-live="polite"></p>
-      <div id="teacherReportsSuccess" class="success" hidden><b>דוחות המורים, רשימת ההקראה וקובץ Excel המעודכן מוכנים.</b><p id="teacherReportsDetails"></p><div id="teacherFileList" class="teacher-file-list"></div><div class="button-row reports-buttons"><button id="downloadUpdatedWorkbook" class="primary">הורדת קובץ Excel המעודכן</button><button id="downloadTeacherReports" class="secondary">הורדת דוחות המורים ZIP</button><button id="downloadReadingList" class="secondary">הורדת רשימת הקראה PDF</button><button id="openTeacherReports" class="secondary">פתח תיקיית דוחות</button><button id="backAfterReports" class="secondary">חזרה לתוצאות</button></div></div>
+      <div id="teacherReportsSuccess" class="success" hidden><b>דוחות המורים, רשימת ההקראה וקובץ Excel המעודכן מוכנים.</b><p id="teacherReportsDetails"></p><div id="teacherFileList" class="teacher-file-list"></div><div class="button-row reports-buttons"><button id="downloadUpdatedWorkbook" class="primary">הורדת קובץ Excel המעודכן</button><button id="downloadTeacherReports" class="secondary">הורדת דוחות המורים ZIP</button><button id="downloadReadingList" class="secondary">הורדת רשימת הקראה PDF</button><button id="openTeacherReports" class="secondary">פתח תיקיית דוחות</button><button id="backAfterReports" class="secondary">חזרה לתוצאות</button><button id="nextToSeating" class="primary">הבא: קביעת מקומות ישיבה</button></div></div>
+    </section>
+  </main>
+  <main id="seatingScreen" hidden>
+    <div class="intro">
+      <span class="eyebrow">שלב 07</span>
+      <h1>קביעת מקומות ישיבה בחדרי הבחינה</h1>
+      <p>המערכת מפרידה ככל האפשר בין תלמידים מאותן יחידות ומכינה דף A4 לרוחב לכל חדר שאינו חדר מיוחד.</p>
+    </div>
+    <section class="panel seating-panel">
+      <div class="step"><span>07</span><h2>הפקת סידורי הישיבה</h2></div>
+      <div class="info"><b>כללי הסידור</b><p>3 ו־3א נחשבים אותה רמה. תלמידים מאותה רמה אינם יושבים זה לצד זה, משני צדי מעבר או באלכסון. תלמיד המסומן 1 בעמודה N משובץ בשורה הקדמית. חדרים מיוחדים אינם נכללים.</p></div>
+      <div id="seatingError" class="error" role="alert" hidden></div>
+      <div class="wizard-actions"><button id="backToRoomMap" class="secondary">חזרה למספרי החדרים</button><button id="makeSeatingPlans" class="primary">הפק סידורי ישיבה</button></div>
+      <p id="seatingStatus" class="note" role="status" aria-live="polite"></p>
+      <div id="seatingSuccess" class="success" hidden><b>סידורי הישיבה מוכנים.</b><p id="seatingDetails"></p><div id="seatingFileList" class="teacher-file-list"></div><div class="button-row"><button id="downloadSeatingPlans" class="primary">הורדת כל סידורי הישיבה ZIP</button><button id="openSeatingPlans" class="secondary">פתח תיקיית סידורי הישיבה</button></div></div>
     </section>
   </main>
   <footer>נוצר על ידי אסי וינברגר</footer>

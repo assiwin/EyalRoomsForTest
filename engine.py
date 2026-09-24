@@ -46,7 +46,8 @@ def read_book(data):
                 'teacher':cells.get('G',''),'unit':cells.get('H',''),
                 'assigned':cells.get('I',''),
                 'active':one(cells.get('J')),
-                'flags':[k for k in 'KLM' if one(cells.get(k))]
+                'flags':[k for k in 'KLM' if one(cells.get(k))],
+                'problematic':one(cells.get('N'))
             })
         if not all(header.get(k) for k in ['A','B','C','G','H','I','J','K','L','M']):raise ValueError('מבנה הכותרות A–M אינו תואם למבנה הנדרש.')
         p=[r for r in records if r['active']]; seen=set(); errors=[]
@@ -297,7 +298,7 @@ def validate(book,c,a,R,kinds):
     assert len(three)<=3
 
 def restore_result(book):
-    """Rebuild the displayed assignment solely from locked workbook column I."""
+    """Rebuild the displayed assignment solely from workbook column I."""
     participants=book['participants'];assignments={}
     for student in participants:
         raw=norm(student.get('assigned'))
