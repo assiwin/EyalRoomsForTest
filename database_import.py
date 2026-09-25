@@ -83,11 +83,16 @@ def parse_teacher_workbook(data):
         rows = _read_sheet(files[path], shared)
         title = _norm(rows.get(1, {}).get('A'))
         match = re.fullmatch(r'(.+?)\s+(3א|3|4|5)', title)
-        if not match:
-            raise ValueError(f'גיליון „{sheet_name}”: תא A1 חייב להכיל שם מורה ולאחריו 3, 3א, 4 או 5.')
-        teacher, unit = match.group(1).strip(), match.group(2)
+        if match:
+            teacher, unit = match.group(1).strip(), match.group(2)
+        else:
+            # Accept source workbooks that place the study level before the teacher name.
+            match = re.fullmatch(r'(3א|3|4|5)\s+(.+)', title)
+            if not match:
+                raise ValueError(f'גיליון „{sheet_name}”: תא A1 חייב להכיל שם מורה ומספר יחידות 3, 3א, 4 או 5.')
+            unit, teacher = match.group(1), match.group(2).strip()
         sheet_count += 1
-        for row_number in sorted(number for number in rows if number >= 3):
+        for row_number in sorted(number for number in rows if number >= 4):
             row = rows[row_number]
             student_id = _norm(row.get('B'))
             if not student_id:
@@ -106,7 +111,7 @@ def parse_teacher_workbook(data):
     if not sheet_count:
         raise ValueError('לא נמצאו גיליונות מורים בקובץ הקלט.')
     if not students:
-        raise ValueError('לא נמצאו תלמידים בקובץ הקלט החל משורה 3.')
+        raise ValueError('לא נמצאו תלמידים בקובץ הקלט החל משורה 4.')
     return students, sheet_count
 
 
