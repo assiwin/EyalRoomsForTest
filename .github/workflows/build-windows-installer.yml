@@ -40,6 +40,8 @@ jobs:
       - name: Validate Version 16 room rules
         shell: python
         run: |
+          import os, sys
+          sys.path.insert(0, os.environ['GITHUB_WORKSPACE'])
           from engine import solve
           students = []
           row = 2
