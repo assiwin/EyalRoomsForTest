@@ -37,6 +37,42 @@ jobs:
           if duplicates:
               raise SystemExit(f'Duplicate HTML ids: {duplicates}')
           print(f'HTML ids OK: {len(ids)} unique ids')
+      - name: Validate Version 16 room rules
+        shell: python
+        run: |
+          from engine import solve
+          students = []
+          row = 2
+          def add(name, unit, teacher, extra='', reduced=False, separate=False):
+              global row
+              students.append({'row': row, 'id': str(100000000+row), 'name': name, 'class': 'י1',
+                               'extra_time': str(extra), 'enlargement': '', 'reading': '',
+                               'teacher': teacher, 'unit': unit, 'assigned': '', 'active': True,
+                               'future_reduced': False, 'reduced': reduced, 'separate': separate,
+                               'flags': ['M'] if separate else (['L'] if reduced else []), 'problematic': False})
+              row += 1
+          for i in range(15):
+              add(f'Reduced {i}', '4' if i < 8 else '5', 'ReducedTeacher', 33 if i == 0 else '', True)
+          add('Outside extra 4', '4', 'Teacher4', 50)
+          add('Outside extra 5', '5', 'Teacher5', 50)
+          add('Separate', '3', 'SeparateTeacher', '', False, True)
+          for i in range(18): add(f'R3 {i}', '3', 'Teacher3')
+          for i in range(18): add(f'R4 {i}', '4', 'Teacher4')
+          for i in range(18): add(f'R5 {i}', '5', 'Teacher5')
+          book = {'participants': students}
+          cfg = {'normal':29,'maximum':32,'percent':30,'level':16,'limit':25,'singleDesk':False,
+                 'reducedRooms':2,'extraTimePolicy':'reduced'}
+          result = solve(book, cfg)
+          reduced_rooms = [x['room'] for x in result['rooms'] if x['kind'].startswith('מצומצם ')]
+          assert len(reduced_rooms) == 2, reduced_rooms
+          loads = [x['count'] for x in result['rooms'] if x['room'] in reduced_rooms]
+          assert abs(loads[0]-loads[1]) <= 3, loads
+          extra_rows = {s['row'] for s in students if s['unit'] in ('4','5') and str(s['extra_time']) in ('33','50')}
+          extra_assigned = {result['assignments'][r] for r in extra_rows}
+          assert len(extra_assigned) == 1 and next(iter(extra_assigned)) in reduced_rooms, extra_assigned
+          separate_room = result['assignments'][next(s['row'] for s in students if s['separate'])]
+          assert next(x for x in result['rooms'] if x['room']==separate_room)['kind'] == 'נפרד'
+          print('Version 16 room rules OK', loads, extra_assigned)
       - name: Build application
         shell: cmd
         run: >-
