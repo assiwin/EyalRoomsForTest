@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - v16-work
 
 jobs:
   build:
@@ -19,6 +20,23 @@ jobs:
           cache: pip
       - name: Install Python dependencies
         run: 'python -m pip install --only-binary=:all: -r requirements.txt pyinstaller==6.16.0'
+      - name: Validate Python syntax
+        shell: cmd
+        run: python -m py_compile app.py engine.py database_import.py workbook_management.py envelopes.py matrix_pdf.py teacher_reports.py reading_list.py schedule_pdf.py seating_plan.py
+      - name: Validate JavaScript syntax
+        shell: cmd
+        run: node --check web\ui.js
+      - name: Validate HTML ids
+        shell: python
+        run: |
+          import re
+          from pathlib import Path
+          text = Path('web/index.html').read_text(encoding='utf-8')
+          ids = re.findall(r'id="([^"]+)"', text)
+          duplicates = sorted({value for value in ids if ids.count(value) > 1})
+          if duplicates:
+              raise SystemExit(f'Duplicate HTML ids: {duplicates}')
+          print(f'HTML ids OK: {len(ids)} unique ids')
       - name: Build application
         shell: cmd
         run: >-
