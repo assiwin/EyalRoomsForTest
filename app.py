@@ -181,6 +181,13 @@ def main():
                         cancel()
                         if not state['baseTotal']:raise ValueError('אין שיבוץ בסיס.')
                         state.update(result=state['baseResult'],output=state['baseOutput'],error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None);self.send(200,{'ok':True});return
+                    if path=='/validation-report':
+                        if not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני שמירת דוח הבדיקות.')
+                        report={key:value for key,value in state['result'].items() if key!='assignments'}
+                        current_output_dir().mkdir(parents=True,exist_ok=True)
+                        target=current_output_dir()/'room-assignment-report.json'
+                        target.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+                        self.send(200,{'filename':target.name,'path':str(target)});return
                     if path=='/matrix-pdf':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
                         if not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת המטריצה.')
@@ -210,10 +217,10 @@ def main():
                         reading_pdf,reading_meta=create_reading_list_pdf(state['book'],state['result'],room_labels,base)
                         current_output_dir().mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                        report_dir=current_output_dir()/f'teacher_reports_{stamp}';report_dir.mkdir()
+                        report_dir=current_output_dir()
                         for report_name,report_data in reports.items():(report_dir/report_name).write_bytes(report_data)
                         reading_target=report_dir/'reading_list.pdf';reading_target.write_bytes(reading_pdf)
-                        zip_target=current_output_dir()/f'teacher_reports_{stamp}.zip';zip_target.write_bytes(archive)
+                        zip_target=report_dir/f'teacher_reports_{stamp}.zip';zip_target.write_bytes(archive)
                         source=state.get('output') or state['data'];updated=update_management(source,room_labels=room_labels)
                         persist_workbook(updated);state['management']['roomLabels']=room_labels;state.update(output=updated,teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta,readingList=reading_pdf,readingListPath=reading_target)
                         self.send(200,{**meta,**reading_meta,'filename':zip_target.name,'readingFilename':reading_target.name,'path':str(report_dir)});return
