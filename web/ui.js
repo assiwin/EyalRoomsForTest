@@ -156,7 +156,7 @@ function save(blob,name){const u=URL.createObjectURL(blob),a=document.createElem
 async function downloadWorkbook(){try{save(await api('/download'),filename)}catch(e){error(e.message);setRoomMapError(e.message)}}
 $('download').onclick=downloadWorkbook;
 $('downloadUpdatedWorkbook').onclick=downloadWorkbook;
-$('report').onclick=()=>{const {assignments,...report}=result;save(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'}),'room-assignment-report.json')};
+$('report').onclick=async()=>{try{const info=await api('/validation-report',{});const {assignments,...report}=result;save(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'}),info.filename||'room-assignment-report.json')}catch(e){error(e.message)}};
 
 $('makeMatrixPdf').onclick=async()=>{
   try{matrixPdfBusy=true;$('makeMatrixPdf').disabled=true;error('');$('matrixPdfSuccess').hidden=true;$('matrixPdfStatus').textContent='מכין עותק PDF של המטריצה…';matrixPdfInfo=await api('/matrix-pdf',{});$('matrixPdfDetails').textContent=`${matrixPdfInfo.teachers} שורות מורים · ${matrixPdfInfo.rooms} חדרים · ${matrixPdfInfo.students} תלמידים · ${matrixPdfInfo.pages} עמודים`;$('matrixPdfSuccess').hidden=false;$('matrixPdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה.'}
