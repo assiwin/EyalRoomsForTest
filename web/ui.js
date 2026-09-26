@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id),token=document.querySelector('meta[name=app-token]').content;
-let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,schedulePdfBusy=false,teacherReportsBusy=false,seatingBusy=false,databaseBusy=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,seatingInfo=null,examSchedule=null,savedRoomLabels={},databaseBlob=null,databaseFilename='';
+let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,schedulePdfBusy=false,teacherReportsBusy=false,seatingBusy=false,databaseBusy=false,databaseBaseSelected=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,seatingInfo=null,examSchedule=null,savedRoomLabels={},databaseBlob=null,databaseFilename='';
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
@@ -45,28 +45,34 @@ async function api(path,body,raw=false){
 }
 
 function fileToBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(Error('קריאת הקובץ נכשלה.'));reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.readAsDataURL(file)})}
-function databaseControls(){const base=$('databaseBaseFile').files[0],input=$('databaseInputFile').files[0];$('processDatabase').disabled=databaseBusy||!base||!input}
-function showAssignment(){ $('databaseScreen').hidden=true;$('seatingScreen').hidden=true;$('mainScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'}) }
+function databaseControls(){const input=$('databaseInputFile').files[0];$('processDatabase').disabled=databaseBusy||!databaseBaseSelected||!input;$('chooseDatabaseBase').disabled=databaseBusy}
+function showAssignment(){$('databaseScreen').hidden=true;$('seatingScreen').hidden=true;$('mainScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'});controls()}
 document.querySelectorAll('input[name=databaseMode]').forEach(input=>input.onchange=()=>{$('databaseSuccess').hidden=true;databaseBlob=null;databaseControls()});
-$('databaseBaseFile').onchange=$('databaseInputFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseBlob=null;databaseControls()};
+$('chooseDatabaseBase').onclick=async()=>{
+  try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;const info=await api('/select-database-base',{});if(info.cancelled)return;databaseBaseSelected=true;$('databaseBaseSelection').textContent=info.path||info.filename;$('databaseSuccess').hidden=true;databaseBlob=null;$('databaseStatus').textContent='קובץ classlist נבחר. יש לבחור גם את קובץ נתוני המורים.'}
+  catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message}
+  finally{databaseBusy=false;databaseControls()}
+};
+$('databaseInputFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseBlob=null;databaseControls()};
 $('processDatabase').onclick=async()=>{
-  const base=$('databaseBaseFile').files[0],input=$('databaseInputFile').files[0],mode=document.querySelector('input[name=databaseMode]:checked')?.value;
-  if(!base||!input)return;if(!confirm('הנך מעדכן את בסיס הנתונים, האם להמשיך?'))return;
+  const input=$('databaseInputFile').files[0],mode=document.querySelector('input[name=databaseMode]:checked')?.value;
+  if(!databaseBaseSelected||!input)return;if(!confirm('הנך מעדכן את בסיס הנתונים, האם להמשיך?'))return;
   try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;$('databaseSuccess').hidden=true;$('databaseStatus').textContent='קורא את גיליונות המורים ומעדכן את קובץ classlist…';
-    const info=await api('/database-import',{mode,baseName:base.name,inputName:input.name,baseData:await fileToBase64(base),inputData:await fileToBase64(input)});
+    const info=await api('/database-import',{mode,inputName:input.name,inputData:await fileToBase64(input)});
     databaseBlob=await api('/download-database');databaseFilename=info.filename;
-    $('databaseDetails').textContent=mode==='new'?`${info.students} תלמידים מ־${info.sheets} גיליונות נכתבו לגיליון dbase.`:`נקראו ${info.students} תלמידים מ־${info.sheets} גיליונות. בוצעו ${info.changes} עדכוני שדות ונרשמו ${info.logEntries} רשומות בגיליון log.`;
+    const summary=mode==='new'?`${info.students} תלמידים מ־${info.sheets} גיליונות נכתבו לגיליון dbase.`:`נקראו ${info.students} תלמידים מ־${info.sheets} גיליונות. בוצעו ${info.changes} עדכוני תלמידים ונרשמו ${info.logEntries} רשומות בגיליון log.`;
+    $('databaseDetails').textContent=summary+(info.savedPath?` הקובץ נשמר גם ב־${info.savedPath}.`:'');
     $('databaseSuccess').hidden=false;$('databaseStatus').textContent='העדכון הסתיים בהצלחה. ניתן להוריד את הקובץ או להמשיך ישירות לשיבוץ.';
   }catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message;$('databaseStatus').textContent='עדכון בסיס הנתונים נכשל.'}
   finally{databaseBusy=false;databaseControls()}
 };
 $('downloadDatabase').onclick=()=>{if(databaseBlob)save(databaseBlob,databaseFilename||'classlist.xlsm')};
-$('continueWithDatabase').onclick=async()=>{if(!databaseBlob)return;showAssignment();await upload(new File([databaseBlob],databaseFilename,{type:'application/octet-stream'}))};
+$('continueWithDatabase').onclick=async()=>{if(!databaseBlob)return;try{const b=await api('/use-database-output',{});showAssignment();applyLoadedResponse(b)}catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message}};
 $('skipDatabase').onclick=showAssignment;
 function error(s){$('error').hidden=!s;$('error').textContent=s||''}
-function cfg(){const c={special:{},singleDesk:$('singleDesk').value==='yes'};for(const k of ['normal','maximum','percent','level','limit'])c[k]=Number($(k).value);document.querySelectorAll('[data-special]').forEach(e=>c.special[e.dataset.special]=Number(e.value));return c}
+function cfg(){const c={singleDesk:$('singleDesk').value==='yes',reducedRooms:0,extraTimePolicy:'regularTogether'};for(const k of ['normal','maximum','percent','level','limit'])c[k]=Number($(k).value);const reduced=document.querySelector('input[name=reducedRooms]:checked');if(reduced)c.reducedRooms=Number(reduced.value);const policy=document.querySelector('input[name=extraTimePolicy]:checked');if(policy)c.extraTimePolicy=policy.value;return c}
 function selectedGrade(){return document.querySelector('input[name=grade]:checked')?.value||''}
-function updateGradeDisplay(){$('selectedGradeDisplay').textContent=selectedGrade()||'טרם נבחרה'}
+function updateGradeDisplay(){const grade=selectedGrade();$('selectedGradeDisplay').textContent=grade||'טרם נבחרה';$('gradeGate').hidden=!!grade}
 function noteRows(){return [...document.querySelectorAll('.note-row')]}
 function noteValid(){return noteRows().every(row=>{const room=row.querySelector('.note-room').value,text=row.querySelector('.note-text').value.trim();return (!room&&!text)||(room&&text&&text.length<=120)})}
 function invalidatePdf(){pdfInfo=null;$('pdfSuccess').hidden=true;$('pdfStatus').textContent='';envelopeControls()}
@@ -80,22 +86,43 @@ function envelopeControls(){
   $('addNote').disabled=busy||pdfBusy||noteRows().length>=2;
 }
 function controls(){
-  const scheduleValid=$('scheduleForm').checkValidity(),valid=loaded&&scheduleValid&&$('settings').checkValidity()&&Number($('normal').value)<=Number($('maximum').value);
-  $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input,select').forEach(e=>e.disabled=busy);$('file').disabled=busy||!scheduleValid;$('makeSchedulePdf').disabled=busy||schedulePdfBusy||!scheduleValid;
+  const gradeReady=!!selectedGrade(),scheduleValid=$('scheduleForm').checkValidity(),valid=gradeReady&&loaded&&scheduleValid&&$('settings').checkValidity()&&Number($('normal').value)<=Number($('maximum').value);
+  $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input,select').forEach(e=>e.disabled=busy||!gradeReady);$('chooseClasslist').disabled=busy||!gradeReady;
+  $('scheduleForm').querySelectorAll('input').forEach(e=>e.disabled=busy||!gradeReady);$('resetSchedule').disabled=busy||!gradeReady;$('makeSchedulePdf').disabled=busy||schedulePdfBusy||!gradeReady||!loaded||!scheduleValid;
   $('download').disabled=busy;$('report').disabled=busy;$('reset').disabled=busy;$('next').disabled=busy||!pdfInfo;$('nextHelp').hidden=!result||!!pdfInfo;target();envelopeControls();
 }
 function target(){const n=Number($('delta').value),sign=document.querySelector('input[name=op]:checked').value==='add'?1:-1;const t=baseTotal+sign*n;$('target').textContent=baseTotal?`בסיס: ${baseTotal} חדרים · יעד מבוקש: ${t}`:'';$('rebalance').disabled=busy||!baseTotal||!Number.isInteger(n)||n<1||t<1||t>Number($('limit').value)}
 
-async function upload(file){
-  if(!file||busy)return;const epoch=++uploadEpoch;clearTimeout(pollTimer);loaded=false;result=null;baseTotal=null;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();error('');filename=file.name;controls();$('status').textContent='קורא ובודק את הקובץ…';
-  try{const b=await api('/upload',await file.arrayBuffer(),true);if(epoch!==uploadEpoch)return;loaded=true;savedRoomLabels=b.management?.roomLabels||{};$('fileinfo').innerHTML=`<b dir="ltr">${esc(filename)}</b><p>${b.records} רשומות · ${b.participants} משתתפים · ${b.records-b.participants} לא משתתפים</p>`;$('special').innerHTML=Object.entries(b.special).map(([k,n])=>`<div class="info"><b>${{K:'מצומצם 1',L:'מצומצם 2',M:'נפרד'}[k]}: ${n} תלמידים</b><div class="field"><label for="cap-${k}">קיבולת מאושרת לחדר</label><input id="cap-${k}" data-special="${k}" type="number" min="${n}" max="1000" required placeholder="—"></div><p class="note">לא יתבצע פיצול אוטומטי. הזינו רק קיבולת מאושרת.</p></div>`).join('');if(b.restoredResult){result=b.restoredResult;baseTotal=b.baseTotal||result.total;pdfInfo={restored:true};const settings=result.settings||{};for(const key of ['normal','maximum','percent','level','limit'])if(Number.isFinite(settings[key]))$(key).value=settings[key];$('singleDesk').value=settings.singleDesk?'yes':'no';for(const [key,value] of Object.entries(settings.special||{})){const input=$('cap-'+key);if(input)input.value=value}updateGradeDisplay();updateSingleDeskInfo();render()}$('status').textContent=b.restoredResult?'הקובץ המעודכן נטען וכל תוצאות השיבוץ שוחזרו ממנו.':Object.keys(b.special).length?'הקובץ תקין. יש להזין קיבולת מאושרת לחדרים המיוחדים.':'הקובץ תקין ומוכן לחישוב.'}
-  catch(e){error(e.message);$('fileinfo').textContent='';$('special').innerHTML='';$('status').textContent='לא נטען קובץ תקין.'}controls();
+function buildSpecialControls(b){
+  const reduced=Number(b.reducedCount||0),separate=Number(b.separateCount||0),extras=b.extraTimeCandidates||[];let html='';
+  if(reduced){html+=`<div class="info"><b>חדרים מצומצמים: ${reduced} תלמידים מסומנים בעמודה L</b><p>בחרו אם לסדר אותם בחדר אחד או בשני חדרים. עמודה K נשמרת לשימוש עתידי.</p><div class="choice-row"><label><input type="radio" name="reducedRooms" value="1" required> חדר אחד</label><label><input type="radio" name="reducedRooms" value="2" required> שני חדרים</label></div></div>`}
+  if(separate)html+=`<div class="info"><b>חדר נפרד: ${separate} תלמידים מסומנים בעמודה M</b><p>הדרישה לחדר נפרד נשמרת אוטומטית ואין צורך באישור נוסף.</p></div>`;
+  if(extras.length){
+    const outside=extras.filter(x=>!x.inReduced);
+    html+=`<div class="info extra-time-box"><b>תלמידי 4/5 עם 33% או 50% תוספת זמן</b><div class="tablewrap"><table><thead><tr><th>תלמיד</th><th>מורה</th><th>יחידות</th><th>תוספת</th><th>מצומצם</th></tr></thead><tbody>${extras.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.teacher)}</td><td>${esc(x.unit)}</td><td>${x.extraTime}%</td><td>${x.inReduced?'כן':'לא'}</td></tr>`).join('')}</tbody></table></div>`;
+    if(outside.length&&reduced)html+=`<p><b>כיצד לשבץ את ${outside.length} התלמידים שאינם כבר בחדר מצומצם?</b></p><div class="choice-stack"><label><input type="radio" name="extraTimePolicy" value="reduced" required> להכניס גם אותם לחדרים המצומצמים</label><label><input type="radio" name="extraTimePolicy" value="regularTogether" required> להשאיר בחדרים אחרים ולרכז אותם יחד ככל האפשר</label></div>`;
+    else if(outside.length)html+='<p>אין תלמידים המסומנים L לחדר מצומצם; התלמידים האלה ירוכזו יחד ככל האפשר בחדרים הרגילים.</p>';
+    else html+='<p>כל התלמידים ברשימה כבר מסומנים לחדר מצומצם.</p>';
+    html+='</div>';
+  }
+  $('special').innerHTML=html;
 }
-$('file').onchange=e=>upload(e.target.files[0]);$('drop').ondragover=e=>e.preventDefault();$('drop').ondrop=e=>{e.preventDefault();upload(e.dataTransfer.files[0])};
+function applyLoadedResponse(b){
+  loaded=true;filename=b.filename||filename;savedRoomLabels=b.management?.roomLabels||{};buildSpecialControls(b);
+  $('fileinfo').innerHTML=`<b dir="ltr">${esc(filename)}</b><p>${b.records} רשומות · ${b.participants} משתתפים · ${b.records-b.participants} לא משתתפים</p>${b.sourceDir?`<p>כל קובצי הפלט יישמרו תחת: <span dir="ltr">${esc(b.sourceDir)}</span></p>`:''}`;
+  if(b.restoredResult){result=b.restoredResult;baseTotal=b.baseTotal||result.total;pdfInfo={restored:true};const settings=result.settings||{};for(const key of ['normal','maximum','percent','level','limit'])if(Number.isFinite(settings[key]))$(key).value=settings[key];$('singleDesk').value=settings.singleDesk?'yes':'no';if(settings.reducedRooms){const radio=document.querySelector(`input[name=reducedRooms][value="${settings.reducedRooms}"]`);if(radio)radio.checked=true}if(settings.extraTimePolicy){const radio=document.querySelector(`input[name=extraTimePolicy][value="${settings.extraTimePolicy}"]`);if(radio)radio.checked=true}updateSingleDeskInfo();render()}
+  $('status').textContent=b.restoredResult?'הקובץ המעודכן נטען וכל תוצאות השיבוץ שוחזרו ממנו.':'הקובץ תקין. יש להשלים את בחירות החדרים המצומצמים ותוספת הזמן, אם הן מוצגות.';
+  controls();
+}
+$('chooseClasslist').onclick=async()=>{
+  if(busy||!selectedGrade())return;const epoch=++uploadEpoch;clearTimeout(pollTimer);loaded=false;result=null;baseTotal=null;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();error('');controls();$('status').textContent='פותח חלון לבחירת קובץ classlist…';
+  try{const b=await api('/select-classlist',{});if(epoch!==uploadEpoch||b.cancelled)return;applyLoadedResponse(b)}
+  catch(e){error(e.message);$('fileinfo').textContent='';$('special').innerHTML='';$('status').textContent='לא נטען קובץ תקין.';controls()}
+};
 function updateSingleDeskInfo(){$('singleDeskInfo').hidden=$('singleDesk').value!=='yes'}
 $('settings').oninput=async()=>{updateSingleDeskInfo();clearTimeout(pollTimer);result=null;baseTotal=null;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();controls();try{await api('/invalidate',{})}catch(e){error(e.message)}};
 
-async function run(mode){if(!$('settings').reportValidity())return;busy=true;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();controls();error('');$('status').textContent='מחפש שיבוץ תקין ומאזן חדרים. ניתן לבטל. החיפוש מוגבל בזמן.';try{await api('/run',{settings:cfg(),mode,delta:Number($('delta').value),op:document.querySelector('input[name=op]:checked').value});poll()}catch(e){busy=false;error(e.message);controls()}}
+async function run(mode){if(!selectedGrade()){error('יש לבחור שכבת מבחן לפני המשך העבודה.');return}if(!$('settings').reportValidity())return;busy=true;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();controls();error('');$('status').textContent='מחפש שיבוץ תקין ומאזן חדרים. ניתן לבטל. החיפוש מוגבל בזמן.';try{await api('/run',{settings:cfg(),mode,delta:Number($('delta').value),op:document.querySelector('input[name=op]:checked').value});poll()}catch(e){busy=false;error(e.message);controls()}}
 async function poll(){try{const s=await api('/status');busy=s.busy;if(busy){pollTimer=setTimeout(poll,700);return}result=s.result;baseTotal=s.baseTotal;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();error(s.error);$('status').textContent=s.error?(result?'הניסיון לא הצליח. התוצאה התקינה הקודמת זמינה להורדה.':'לא נוצר שיבוץ.'):result?'החישוב הסתיים והקובץ עבר בדיקת שמירה.':'החישוב בוטל.';controls()}catch(e){busy=false;error(e.message);controls()}}
 
 function matrix(r){const over=new Set(r.rooms.filter(x=>x.overflow).map(x=>x.room));return `<section class="matrix-section"><h3>מטריצת מורים וחדרים</h3><p class="note">בכל תא מוצג מספר התלמידים של המורה ורמת הלימוד ששובצו לחדר. ניתן לגלול לצדדים.</p><div class="matrixwrap"><table class="matrix"><thead><tr><th class="sticky-name">שם מורה</th><th class="sticky-unit">יחידות</th><th class="sticky-total">סה״כ</th>${r.matrix.rooms.map(n=>`<th class="${over.has(n)?'over':''}">${n}</th>`).join('')}<th>בדיקה</th></tr></thead><tbody>${r.matrix.rows.map(x=>`<tr><th class="sticky-name">${esc(x.teacher)}</th><td class="sticky-unit">${esc(x.unit)}</td><td class="sticky-total total">${x.total}</td>${x.counts.map(n=>`<td>${n||''}</td>`).join('')}<td class="check">${x.total-x.counts.reduce((a,b)=>a+b,0)}</td></tr>`).join('')}<tr class="grand"><th class="sticky-name">סה״כ</th><td class="sticky-unit"></td><td class="sticky-total">${r.participants}</td>${r.matrix.roomTotals.map((n,i)=>`<td class="${over.has(r.matrix.rooms[i])?'over':''}">${n}</td>`).join('')}<td>${r.participants-r.matrix.roomTotals.reduce((a,b)=>a+b,0)}</td></tr></tbody></table></div></section>`}
@@ -129,7 +156,7 @@ function save(blob,name){const u=URL.createObjectURL(blob),a=document.createElem
 async function downloadWorkbook(){try{save(await api('/download'),filename)}catch(e){error(e.message);setRoomMapError(e.message)}}
 $('download').onclick=downloadWorkbook;
 $('downloadUpdatedWorkbook').onclick=downloadWorkbook;
-$('report').onclick=()=>{const {assignments,...report}=result;save(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'}),'room-assignment-report.json')};
+$('report').onclick=async()=>{try{const info=await api('/validation-report',{});const {assignments,...report}=result;save(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'}),info.filename||'room-assignment-report.json')}catch(e){error(e.message)}};
 
 $('makeMatrixPdf').onclick=async()=>{
   try{matrixPdfBusy=true;$('makeMatrixPdf').disabled=true;error('');$('matrixPdfSuccess').hidden=true;$('matrixPdfStatus').textContent='מכין עותק PDF של המטריצה…';matrixPdfInfo=await api('/matrix-pdf',{});$('matrixPdfDetails').textContent=`${matrixPdfInfo.teachers} שורות מורים · ${matrixPdfInfo.rooms} חדרים · ${matrixPdfInfo.students} תלמידים · ${matrixPdfInfo.pages} עמודים`;$('matrixPdfSuccess').hidden=false;$('matrixPdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה.'}
@@ -172,16 +199,16 @@ $('downloadReadingList').onclick=async()=>{try{save(await api('/download-reading
 $('openTeacherReports').onclick=async()=>{try{await api('/open-teacher-reports',{})}catch(e){setRoomMapError(e.message)}};
 $('nextToSeating').onclick=showSeating;$('backToRoomMap').onclick=showRoomMapAgain;
 $('makeSeatingPlans').onclick=async()=>{
-  try{seatingBusy=true;$('makeSeatingPlans').disabled=true;$('seatingError').hidden=true;$('seatingSuccess').hidden=true;$('seatingStatus').textContent='מחשב מקומות ישיבה ומפיק קובץ PDF נפרד לכל חדר…';seatingInfo=await api('/seating-plans',{});$('seatingDetails').textContent=`נוצרו ${seatingInfo.rooms} קובצי PDF עבור ${seatingInfo.students} תלמידים.`;$('seatingFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+seatingInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+'</ul>';$('seatingSuccess').hidden=false;$('seatingStatus').textContent='הפקת סידורי הישיבה הסתיימה בהצלחה.'}
+  try{seatingBusy=true;$('makeSeatingPlans').disabled=true;$('seatingError').hidden=true;$('seatingSuccess').hidden=true;$('seatingStatus').textContent='מחשב מקומות ישיבה ומפיק PDF אחד עם עמוד נפרד לכל חדר…';seatingInfo=await api('/seating-plans',{});$('seatingDetails').textContent=`נוצר קובץ PDF אחד עם ${seatingInfo.pages} עמודים עבור ${seatingInfo.students} תלמידים.`;$('seatingFileList').textContent='';$('seatingSuccess').hidden=false;$('seatingStatus').textContent='הפקת סידורי הישיבה הסתיימה בהצלחה.'}
   catch(e){$('seatingError').hidden=false;$('seatingError').textContent=e.message;$('seatingStatus').textContent='הפקת סידורי הישיבה נכשלה.'}
   finally{seatingBusy=false;$('makeSeatingPlans').disabled=false}
 };
-$('downloadSeatingPlans').onclick=async()=>{try{save(await api('/download-seating-plans'),seatingInfo?.filename||'seating_plans.zip')}catch(e){$('seatingError').hidden=false;$('seatingError').textContent=e.message}};
+$('downloadSeatingPlans').onclick=async()=>{try{save(await api('/download-seating-plans'),seatingInfo?.filename||'seating_plans.pdf')}catch(e){$('seatingError').hidden=false;$('seatingError').textContent=e.message}};
 $('openSeatingPlans').onclick=async()=>{try{await api('/open-seating-plans',{})}catch(e){$('seatingError').hidden=false;$('seatingError').textContent=e.message}};
 
 $('addNote').onclick=addNoteRow;document.querySelectorAll('input[name=grade]').forEach(x=>x.onchange=()=>{updateGradeDisplay();invalidatePdf();controls()});
 $('makePdf').onclick=async()=>{
-  try{const grade=selectedGrade();if(!grade)throw Error('יש לבחור שכבת מבחן.');const notes=collectNotes();pdfBusy=true;envelopeControls();error('');$('pdfSuccess').hidden=true;$('pdfStatus').textContent='מכין דפי מעטפות…';pdfInfo=await api('/envelopes',{grade,notes});$('pdfDetails').textContent=`${pdfInfo.rooms} חדרים · ${pdfInfo.students} נבחנים · ${pdfInfo.pages} עמודים · נשמר גם בתיקיית Output`;$('pdfSuccess').hidden=false;$('pdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה.'}
+  try{const grade=selectedGrade();if(!grade)throw Error('יש לבחור שכבת מבחן.');const notes=collectNotes();pdfBusy=true;envelopeControls();error('');$('pdfSuccess').hidden=true;$('pdfStatus').textContent='מכין דפי מעטפות…';pdfInfo=await api('/envelopes',{grade,notes});$('pdfDetails').textContent=`${pdfInfo.rooms} חדרים · ${pdfInfo.students} נבחנים · ${pdfInfo.pages} עמודים · נשמר גם ליד קובץ ה־classlist`;$('pdfSuccess').hidden=false;$('pdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה.'}
   catch(e){error(e.message);$('pdfStatus').textContent='הפקת דפי המעטפות נכשלה.'}
   finally{pdfBusy=false;controls()}
 };

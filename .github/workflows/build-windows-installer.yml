@@ -19,6 +19,113 @@ jobs:
           cache: pip
       - name: Install Python dependencies
         run: 'python -m pip install --only-binary=:all: -r requirements.txt pyinstaller==6.16.0'
+      - name: Validate Python syntax
+        shell: cmd
+        run: python -m py_compile app.py engine.py database_import.py workbook_management.py envelopes.py matrix_pdf.py teacher_reports.py reading_list.py schedule_pdf.py seating_plan.py
+      - name: Validate JavaScript syntax
+        shell: cmd
+        run: node --check web\ui.js
+      - name: Validate HTML ids
+        shell: python
+        run: |
+          import re
+          from pathlib import Path
+          text = Path('web/index.html').read_text(encoding='utf-8')
+          ids = re.findall(r'id="([^"]+)"', text)
+          duplicates = sorted({value for value in ids if ids.count(value) > 1})
+          if duplicates:
+              raise SystemExit(f'Duplicate HTML ids: {duplicates}')
+          print(f'HTML ids OK: {len(ids)} unique ids')
+      - name: Validate Version 16 room rules
+        shell: python
+        run: |
+          import os, sys
+          sys.path.insert(0, os.environ['GITHUB_WORKSPACE'])
+          from engine import solve
+          students = []
+          row = 2
+          def add(name, unit, teacher, extra='', reduced=False, separate=False):
+              global row
+              students.append({'row': row, 'id': str(100000000+row), 'name': name, 'class': 'י1',
+                               'extra_time': str(extra), 'enlargement': '', 'reading': '',
+                               'teacher': teacher, 'unit': unit, 'assigned': '', 'active': True,
+                               'future_reduced': False, 'reduced': reduced, 'separate': separate,
+                               'flags': ['M'] if separate else (['L'] if reduced else []), 'problematic': False})
+              row += 1
+          for i in range(15):
+              add(f'Reduced {i}', '4' if i < 8 else '5', 'ReducedTeacher', 33 if i == 0 else '', True)
+          add('Outside extra 4', '4', 'Teacher4', 50)
+          add('Outside extra 5', '5', 'Teacher5', 50)
+          add('Separate', '3', 'SeparateTeacher', '', False, True)
+          for i in range(18): add(f'R3 {i}', '3', 'Teacher3')
+          for i in range(18): add(f'R4 {i}', '4', 'Teacher4')
+          for i in range(18): add(f'R5 {i}', '5', 'Teacher5')
+          book = {'participants': students}
+          cfg = {'normal':29,'maximum':32,'percent':30,'level':16,'limit':25,'singleDesk':False,
+                 'reducedRooms':2,'extraTimePolicy':'reduced'}
+          result = solve(book, cfg)
+          reduced_rooms = [x['room'] for x in result['rooms'] if x['kind'].startswith('מצומצם ')]
+          assert len(reduced_rooms) == 2, reduced_rooms
+          loads = [x['count'] for x in result['rooms'] if x['room'] in reduced_rooms]
+          assert abs(loads[0]-loads[1]) <= 3, loads
+          extra_rows = {s['row'] for s in students if s['unit'] in ('4','5') and str(s['extra_time']) in ('33','50')}
+          extra_assigned = {result['assignments'][r] for r in extra_rows}
+          assert len(extra_assigned) == 1 and next(iter(extra_assigned)) in reduced_rooms, extra_assigned
+          separate_room = result['assignments'][next(s['row'] for s in students if s['separate'])]
+          assert next(x for x in result['rooms'] if x['room']==separate_room)['kind'] == 'נפרד'
+          print('Version 16 room rules OK', loads, extra_assigned)
+      - name: Validate A1 B1 teacher import
+        shell: python
+        run: |
+          import io, os, sys, zipfile
+          sys.path.insert(0, os.environ['GITHUB_WORKSPACE'])
+          from database_import import parse_teacher_workbook
+          main = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+          rel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+          package_rel = 'http://schemas.openxmlformats.org/package/2006/relationships'
+          workbook = f'''<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="{main}" xmlns:r="{rel}"><sheets><sheet name="מורה" sheetId="1" r:id="rId1"/></sheets></workbook>'''
+          rels = f'''<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="{package_rel}"><Relationship Id="rId1" Type="{rel}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>'''
+          sheet = f'''<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="{main}"><sheetData>
+          <row r="1"><c r="A1" t="inlineStr"><is><t>4</t></is></c><c r="B1" t="inlineStr"><is><t>מורה בדיקה</t></is></c></row>
+          <row r="4"><c r="B4" t="inlineStr"><is><t>123456789</t></is></c><c r="C4" t="inlineStr"><is><t>כהן</t></is></c><c r="D4" t="inlineStr"><is><t>דנה</t></is></c><c r="E4" t="inlineStr"><is><t>י</t></is></c><c r="F4" t="inlineStr"><is><t>1</t></is></c></row>
+          </sheetData></worksheet>'''
+          buf = io.BytesIO()
+          with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+              z.writestr('xl/workbook.xml', workbook)
+              z.writestr('xl/_rels/workbook.xml.rels', rels)
+              z.writestr('xl/worksheets/sheet1.xml', sheet)
+          students, sheets = parse_teacher_workbook(buf.getvalue())
+          assert sheets == 1 and len(students) == 1
+          assert students[0]['unit'] == '4'
+          assert students[0]['teacher'] == 'מורה בדיקה'
+          assert students[0]['name'] == 'כהן דנה'
+          assert students[0]['class'] == 'י1'
+          print('A1/B1 teacher import OK')
+      - name: Validate combined seating PDF
+        shell: python
+        run: |
+          import os, sys
+          sys.path.insert(0, os.environ['GITHUB_WORKSPACE'])
+          from engine import solve
+          from seating_plan import create_seating_plans
+          students=[]; row=2
+          def add(name, unit, teacher):
+              global row
+              students.append({'row':row,'id':str(200000000+row),'name':name,'class':'י1','extra_time':'',
+                               'enlargement':'','reading':'','teacher':teacher,'unit':unit,'assigned':'','active':True,
+                               'future_reduced':False,'reduced':False,'separate':False,'flags':[],'problematic':False})
+              row+=1
+          for i in range(10): add(f'A {i}','3','T3')
+          for i in range(10): add(f'B {i}','4','T4')
+          book={'participants':students}
+          cfg={'normal':29,'maximum':32,'percent':30,'level':16,'limit':25,'singleDesk':False,
+               'reducedRooms':0,'extraTimePolicy':'regularTogether'}
+          result=solve(book,cfg)
+          labels={room:str(100+room) for room in result['matrix']['rooms']}
+          pdf,meta=create_seating_plans(book,result,labels,os.environ['GITHUB_WORKSPACE'])
+          assert pdf.startswith(b'%PDF-') and len(pdf)>1000
+          assert meta['pages']==meta['rooms'] and meta['rooms']>=1
+          print('Combined seating PDF OK',meta)
       - name: Build application
         shell: cmd
         run: >-
@@ -34,6 +141,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ExamRoomApp_Setup_v15
-          path: installer_output/ExamRoomApp_Setup_v15.exe
+          name: ExamRoomApp_Setup_v16
+          path: installer_output/ExamRoomApp_Setup_v16.exe
           if-no-files-found: error

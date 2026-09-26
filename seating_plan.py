@@ -1,4 +1,4 @@
-"""Assign students to 32 classroom seats and create one landscape PDF per room."""
+"""Assign students to 32 classroom seats and create one multi-page landscape PDF."""
 import io
 import re
 import zipfile
@@ -120,14 +120,9 @@ def _seat_text(student, style):
     return _p(f"{student.get('name', '')}\n{student.get('unit', '')} יח׳", style)
 
 
-def _room_pdf(room, physical_room, arranged, font_base):
+def _draw_room(canvas, room, physical_room, arranged, font_base):
     _register_fonts(font_base)
-    from reportlab.pdfgen.canvas import Canvas
-    output = io.BytesIO();page = landscape(A4)
-    canvas = Canvas(output, pagesize=page, pageCompression=1)
-    canvas.setTitle(f'סידור מקומות ישיבה - חדר {room}')
-    canvas.setAuthor('אסי וינברגר')
-    width, height = page
+    page = landscape(A4);width, height = page
     normal = ParagraphStyle('seat-normal', fontName='EnvelopeHebrew', fontSize=8.2,
                             leading=10, alignment=TA_CENTER)
     header = ParagraphStyle('seat-header', fontName='EnvelopeHebrewBold', fontSize=12,
@@ -144,7 +139,6 @@ def _room_pdf(room, physical_room, arranged, font_base):
     top = height - 48 * mm
     seat_height = 22 * mm
     row_gap = 8 * mm
-    # Display columns from right to left: 1 is the right wall and 8 the left wall.
     for row in range(ROWS):
         y = top - row * (seat_height + row_gap) - seat_height
         for pair in range(4):
@@ -157,11 +151,6 @@ def _room_pdf(room, physical_room, arranged, font_base):
                                       ('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(-1,-1),'CENTER'),
                                       ('LEFTPADDING',(0,0),(-1,-1),2),('RIGHTPADDING',(0,0),(-1,-1),2)]))
             desk.wrapOn(canvas, table_width, seat_height);desk.drawOn(canvas, x, y)
-    canvas.showPage();canvas.save()
-    value = output.getvalue()
-    if not value.startswith(b'%PDF-') or len(value) < 1000:
-        raise ValueError(f'יצירת PDF לחדר {room} נכשלה.')
-    return value
 
 
 def create_seating_plans(book, result, room_labels, font_base):
@@ -174,18 +163,20 @@ def create_seating_plans(book, result, room_labels, font_base):
     for student in book.get('participants', []):
         room = assignments.get(student['row'])
         if room in by_room: by_room[int(room)].append(student)
-    reports = {}
-    details = []
+
+    _register_fonts(font_base)
+    from reportlab.pdfgen.canvas import Canvas
+    output = io.BytesIO();canvas = Canvas(output, pagesize=landscape(A4), pageCompression=1)
+    canvas.setTitle('סידורי מקומות ישיבה');canvas.setAuthor('אסי וינברגר')
+    details=[]
     for room in sorted(by_room):
-        arranged = arrange_room(by_room[room])
-        safe_label = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '_', labels[room])[:40]
-        filename = f'room_{room:02d}_{safe_label}.pdf'
-        reports[filename] = _room_pdf(room, labels[room], arranged, font_base)
-        details.append({'room': room, 'physicalRoom': labels[room], 'students': len(by_room[room]),
-                        'units': dict(Counter(student['unit'] for student in by_room[room]))})
-    archive = io.BytesIO()
-    with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED) as target:
-        for filename, data in reports.items(): target.writestr(filename, data)
-    return archive.getvalue(), reports, {'rooms': len(reports),
-                                         'students': sum(len(items) for items in by_room.values()),
-                                         'files': list(reports), 'details': details}
+        arranged=arrange_room(by_room[room])
+        _draw_room(canvas,room,labels[room],arranged,font_base)
+        canvas.showPage()
+        details.append({'room':room,'physicalRoom':labels[room],'students':len(by_room[room]),
+                        'units':dict(Counter(student['unit'] for student in by_room[room]))})
+    canvas.save();value=output.getvalue()
+    if not value.startswith(b'%PDF-') or len(value)<1000:raise ValueError('יצירת קובץ סידורי הישיבה נכשלה.')
+    return value, {'rooms':len(by_room),'pages':len(by_room),
+                   'students':sum(len(items) for items in by_room.values()),'details':details}
+

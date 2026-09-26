@@ -10,6 +10,21 @@ def tag(name): return '{'+NS['s']+'}'+name
 def norm(v): return str(v or '').strip()
 def one(v): return norm(v) in ('1','1.0')
 def clas(v): return re.sub(r'[\s\-״"׳\']','',norm(v))
+
+def extra_percent(value):
+    raw=norm(value).replace('%','').strip()
+    try:value=float(raw)
+    except (TypeError,ValueError):return None
+    if 0<value<=1:value*=100
+    rounded=int(round(value))
+    return rounded if rounded in (25,33,50) else None
+
+def is_extra_45(student):
+    return student.get('unit') in ('4','5') and extra_percent(student.get('extra_time')) in (33,50)
+
+def is_reduced(student,c):
+    return bool(student.get('reduced')) or (c.get('extraTimePolicy')=='reduced' and is_extra_45(student) and not student.get('separate'))
+
 def read_book(data):
     try:
         z=zipfile.ZipFile(io.BytesIO(data))
@@ -46,7 +61,10 @@ def read_book(data):
                 'teacher':cells.get('G',''),'unit':cells.get('H',''),
                 'assigned':cells.get('I',''),
                 'active':one(cells.get('J')),
-                'flags':[k for k in 'KLM' if one(cells.get(k))],
+                'future_reduced':one(cells.get('K')),
+                'reduced':one(cells.get('L')),
+                'separate':one(cells.get('M')),
+                'flags':[k for k in 'LM' if one(cells.get(k))],
                 'problematic':one(cells.get('N'))
             })
         if not all(header.get(k) for k in ['A','B','C','G','H','I','J','K','L','M']):raise ValueError('מבנה הכותרות A–M אינו תואם למבנה הנדרש.')
@@ -55,10 +73,18 @@ def read_book(data):
             if not r['id'] or not r['name'] or not r['teacher'] or not r['class'] or r['unit'] not in ['3','3א','4','5']:errors.append(f"שורה {r['row']}: חסר נתון חובה או רמת לימוד לא תקינה.")
             if r['id'] in seen:errors.append(f"שורה {r['row']}: מזהה תלמיד כפול.")
             seen.add(r['id'])
-            if len(r['flags'])>1 or (r['flags'] and r['class'] in ['י7','יא7','יב7']):errors.append(f"שורה {r['row']}: שיוך סותר לחדרים ייעודיים או מיוחדים.")
+            if r['reduced'] and r['separate']:errors.append(f"שורה {r['row']}: תלמיד אינו יכול להיות מסומן גם מצומצם וגם נפרד.")
+            if (r['reduced'] or r['separate']) and r['class'] in ['י7','יא7','יב7']:errors.append(f"שורה {r['row']}: שיוך סותר לחדר ייעודי ולחדר מיוחד.")
         if errors:raise ValueError('\n'.join(errors[:25]))
         if not p:raise ValueError('אין משתתפים המסומנים 1 בעמודה J.')
-        return {'records':records,'participants':p,'path':path,'text':text,'special':dict(collections.Counter(r['flags'][0] for r in p if r['flags'])),'dedicated':sorted(set(r['class'] for r in p if r['class'] in ['י7','יא7','יב7']))}
+        extras=[{'row':r['row'],'name':r['name'],'teacher':r['teacher'],'unit':r['unit'],
+                 'extraTime':extra_percent(r['extra_time']),'inReduced':bool(r['reduced'])}
+                for r in p if is_extra_45(r)]
+        return {'records':records,'participants':p,'path':path,'text':text,
+                'special':{'L':sum(r['reduced'] for r in p),'M':sum(r['separate'] for r in p)},
+                'reducedCount':sum(r['reduced'] for r in p),'separateCount':sum(r['separate'] for r in p),
+                'extraTimeCandidates':extras,
+                'dedicated':sorted(set(r['class'] for r in p if r['class'] in ['י7','יא7','יב7']))}
     except (zipfile.BadZipFile,KeyError,ET.ParseError,IndexError,UnicodeError) as e:
         raise ValueError('לא ניתן לקרוא את הקובץ. נדרש XLSX או XLSM תקין, ללא סיסמה.') from e
 
@@ -66,23 +92,72 @@ def settings(c):
     for k,lo,hi in [('normal',1,100),('maximum',1,100),('percent',0,100),('level',1,100),('limit',1,25)]:
         if type(c.get(k)) is not int or not lo<=c[k]<=hi:raise ValueError('הגדרה מספרית לא תקינה: '+k)
     if type(c.get('singleDesk',False)) is not bool:raise ValueError('הגדרת בודד בשולחן אינה תקינה.')
+    if c.get('extraTimePolicy','regularTogether') not in ('regularTogether','reduced'):raise ValueError('בחירת שיבוץ תוספת הזמן אינה תקינה.')
+    reduced_rooms=c.get('reducedRooms',0)
+    if type(reduced_rooms) is not int or reduced_rooms not in (0,1,2):raise ValueError('מספר החדרים המצומצמים חייב להיות 0, 1 או 2.')
     if c['normal']>c['maximum']:raise ValueError('התקרה הרגילה גדולה מהתקרה המרבית.')
     return c
 
+def prepare_groups(book,c):
+    p=book['participants'];groups=collections.defaultdict(list);dedicated=collections.defaultdict(list)
+    reduced=[];separate=[]
+    base_reduced=any(student.get('reduced') for student in p)
+    if c.get('extraTimePolicy')=='reduced' and not base_reduced and any(is_extra_45(student) for student in p):
+        raise ValueError('לא קיימים תלמידים המסומנים L לחדר מצומצם; לא ניתן לבחור הוספת תלמידים לחדר מצומצם.')
+    for student in p:
+        if student.get('separate'):separate.append(student)
+        elif is_reduced(student,c):reduced.append(student)
+        elif student['class'] in ['י7','יא7','יב7']:dedicated[student['class']].append(student)
+        else:groups[(student['teacher'],student['unit'])].append(student)
+    reduced_rooms=c.get('reducedRooms',0)
+    if reduced:
+        if reduced_rooms not in (1,2):raise ValueError('יש לבחור אם לסדר את התלמידים המצומצמים בחדר אחד או בשני חדרים.')
+        if reduced_rooms==2 and len(reduced)<2:raise ValueError('לא ניתן לפתוח שני חדרים מצומצמים עבור תלמיד אחד.')
+    else:reduced_rooms=0
+    return p,groups,dedicated,reduced,separate,reduced_rooms
+
+def split_reduced(members,room_count):
+    if room_count==0:return []
+    if room_count==1:return [list(members)]
+    total=len(members);maximum=(total+3)//2;minimum=total-maximum
+    extra=[student for student in members if is_extra_45(student)]
+    extra_rows={student['row'] for student in extra}
+    if len(extra)>maximum:
+        raise ValueError('לא ניתן לשמור את כל תלמידי 4/5 עם 33% או 50% תוספת זמן יחד ובמקביל לשמור על פער של עד 3 תלמידים בין שני חדרים מצומצמים.')
+    long=[student for student in members if student['unit'] in ('4','5') and student['row'] not in extra_rows]
+    used=extra_rows|{student['row'] for student in long}
+    short=[student for student in members if student['row'] not in used]
+    target=max((total+1)//2,min(maximum,len(extra)+len(long)));target=max(minimum,min(maximum,target))
+    first=(extra+long+short)[:target];chosen={student['row'] for student in first}
+    second=[student for student in members if student['row'] not in chosen]
+    if abs(len(first)-len(second))>3:raise ValueError('לא ניתן לאזן את שני החדרים המצומצמים בפער של עד 3 תלמידים.')
+    return [first,second]
+
+def concentrate_regular_extra(groups,assign,R,c):
+    if c.get('extraTimePolicy')!='regularTogether' or R<1:return
+    targets={key:[student for student in members if is_extra_45(student)] for key,members in groups.items()}
+    targets={key:members for key,members in targets.items() if members}
+    if not targets:return
+    scores={room:sum(sum(assign[s['row']]==room for s in members) for members in targets.values()) for room in range(1,R+1)}
+    preferred=max(scores,key=lambda room:(scores[room],-room))
+    for key,target_members in targets.items():
+        members=groups[key];wanted_rows={student['row'] for student in target_members}
+        wanted=[student for student in members if student['row'] in wanted_rows]
+        others=[student for student in members if student['row'] not in wanted_rows]
+        counts=collections.Counter(assign[student['row']] for student in members)
+        for room in [preferred]+[r for r in range(1,R+1) if r!=preferred]:
+            slots=counts.get(room,0);selected=[]
+            while slots and wanted:selected.append(wanted.pop(0));slots-=1
+            while slots and others:selected.append(others.pop(0));slots-=1
+            for student in selected:assign[student['row']]=room
+
 def solve(book,c,target=None):
     if c.get('singleDesk',False):return solve_single_desk(book,c,target)
-    settings(c); p=book['participants']; groups=collections.defaultdict(list); special=collections.defaultdict(list); dedicated=collections.defaultdict(list)
-    for r in p:
-        if r['flags']:special[r['flags'][0]].append(r)
-        elif r['class'] in ['י7','יא7','יב7']:dedicated[r['class']].append(r)
-        else:groups[(r['teacher'],r['unit'])].append(r)
-    for k,rr in special.items():
-        cap=c.get('special',{}).get(k)
-        if type(cap) is not int or cap<len(rr):raise ValueError(f'בחדר {k} יש {len(rr)} תלמידים. נדרשת קיבולת מאושרת מתאימה; לא מתבצע פיצול אוטומטי.')
+    settings(c);p,groups,dedicated,reduced,separate,reduced_rooms=prepare_groups(book,c)
     for k,rr in dedicated.items():
         u=collections.Counter(r['unit'] for r in rr)
         if len(rr)>c['maximum'] or max(u.values())>c['level'] or ('3' in u and '3א' in u):raise ValueError('הכיתה '+k+' אינה נכנסת לחדר ייעודי יחיד תחת הכללים. יש לתקן את הכללים או את הקלט.')
-    extra=len(special)+len(dedicated); keys=list(groups); sizes=[len(groups[k]) for k in keys]; G=len(keys); N=sum(sizes); units=collections.Counter()
+    extra=reduced_rooms+(1 if separate else 0)+len(dedicated);keys=list(groups);sizes=[len(groups[k]) for k in keys];G=len(keys);N=sum(sizes);units=collections.Counter()
     for k,n in zip(keys,sizes):units[k[1]]+=n
     for k,n in zip(keys,sizes):
         if n>c['level']*(2 if n<=32 else 3):raise ValueError('לא ניתן לעמוד במגבלת פיצול הקבוצה: '+k[0]+' / '+k[1])
@@ -145,14 +220,17 @@ def solve(book,c,target=None):
             for student in groups[key][pos:pos+count]:assign[student['row']]=r+1
             pos+=count;kinds[r+1]='רגיל'
         assert pos==len(groups[key])
+    concentrate_regular_extra(groups,assign,R,c)
     nr=R
     for cl,rr in sorted(dedicated.items()):
         nr+=1;kinds[nr]='כיתה '+cl
         for student in rr:assign[student['row']]=nr
-    for k in 'KLM':
-        if k in special:
-            nr+=1;kinds[nr]={'K':'מצומצם 1','L':'מצומצם 2','M':'נפרד'}[k]
-            for student in special[k]:assign[student['row']]=nr
+    for index,members in enumerate(split_reduced(reduced,reduced_rooms),1):
+        nr+=1;kinds[nr]=f'מצומצם {index}'
+        for student in members:assign[student['row']]=nr
+    if separate:
+        nr+=1;kinds[nr]='נפרד'
+        for student in separate:assign[student['row']]=nr
     validate(book,c,assign,R,kinds)
     rooms=[]
     for r in range(1,nr+1):
@@ -168,23 +246,16 @@ def solve(book,c,target=None):
     roomtotals=[sum(1 for s in p if assign[s['row']]==room) for room in range(1,nr+1)]
     matrix={'rooms':list(range(1,nr+1)),'rows':matrixrows,'roomTotals':roomtotals,'unitTotals':dict(collections.Counter(s['unit'] for s in p))}
     splits=[{'teacher':k[0],'unit':k[1],'rooms':dict(sorted(collections.Counter(assign[s['row']] for s in rr).items()))} for k,rr in groups.items()]
-    return {'assignments':assign,'rooms':rooms,'matrix':matrix,'splits':splits,'participants':len(p),'total':nr,'regular':R,'special':len(special),'dedicated':len(dedicated),'overflow':sum(r['overflow'] for r in rooms),'quota':math.floor(R*c['percent']/100),'minimal':target is None,'balanced':balanced,'splitOptimal':split_optimal,'settings':c}
+    return {'assignments':assign,'rooms':rooms,'matrix':matrix,'splits':splits,'participants':len(p),'total':nr,'regular':R,'special':reduced_rooms+(1 if separate else 0),'dedicated':len(dedicated),'overflow':sum(r['overflow'] for r in rooms),'quota':math.floor(R*c['percent']/100),'minimal':target is None,'balanced':balanced,'splitOptimal':split_optimal,'settings':c}
 
 def solve_single_desk(book,c,target=None):
     """Optimize the mock-exam single-desk arrangement without changing special-room rules."""
-    settings(c);p=book['participants'];groups=collections.defaultdict(list);special=collections.defaultdict(list);dedicated=collections.defaultdict(list)
-    for student in p:
-        if student['flags']:special[student['flags'][0]].append(student)
-        elif student['class'] in ['י7','יא7','יב7']:dedicated[student['class']].append(student)
-        else:groups[(student['teacher'],student['unit'])].append(student)
-    for key,members in special.items():
-        cap=c.get('special',{}).get(key)
-        if type(cap) is not int or cap<len(members):raise ValueError(f'בחדר {key} יש {len(members)} תלמידים. נדרשת קיבולת מאושרת מתאימה; לא מתבצע פיצול אוטומטי.')
+    settings(c);p,groups,dedicated,reduced,separate,reduced_rooms=prepare_groups(book,c)
     for key,members in dedicated.items():
         units=collections.Counter(student['unit'] for student in members)
         if len(members)>c['maximum'] or max(units.values())>c['level'] or ('3' in units and '3א' in units):raise ValueError('הכיתה '+key+' אינה נכנסת לחדר ייעודי יחיד תחת הכללים. יש לתקן את הכללים או את הקלט.')
 
-    keys=list(groups);sizes=[len(groups[key]) for key in keys];G=len(keys);N=sum(sizes);extra=len(special)+len(dedicated)
+    keys=list(groups);sizes=[len(groups[key]) for key in keys];G=len(keys);N=sum(sizes);extra=reduced_rooms+(1 if separate else 0)+len(dedicated)
     category=lambda unit:'3' if unit in ('3','3א') else unit
     totals=collections.Counter()
     for key,size in zip(keys,sizes):totals[category(key[1])]+=size
@@ -249,14 +320,17 @@ def solve_single_desk(book,c,target=None):
             for student in groups[key][position:position+count]:assign[student['row']]=room+1
             position+=count;kinds[room+1]='רגיל'
         assert position==len(groups[key])
+    concentrate_regular_extra(groups,assign,R,c)
     number=R
     for class_name,members in sorted(dedicated.items()):
         number+=1;kinds[number]='כיתה '+class_name
         for student in members:assign[student['row']]=number
-    for key in 'KLM':
-        if key in special:
-            number+=1;kinds[number]={'K':'מצומצם 1','L':'מצומצם 2','M':'נפרד'}[key]
-            for student in special[key]:assign[student['row']]=number
+    for index,members in enumerate(split_reduced(reduced,reduced_rooms),1):
+        number+=1;kinds[number]=f'מצומצם {index}'
+        for student in members:assign[student['row']]=number
+    if separate:
+        number+=1;kinds[number]='נפרד'
+        for student in separate:assign[student['row']]=number
     validate(book,c,assign,R,kinds)
     rooms=[]
     for room in range(1,number+1):
@@ -271,14 +345,15 @@ def solve_single_desk(book,c,target=None):
     room_totals=[sum(1 for student in p if assign[student['row']]==room) for room in range(1,number+1)]
     matrix={'rooms':list(range(1,number+1)),'rows':matrix_rows,'roomTotals':room_totals,'unitTotals':dict(collections.Counter(student['unit'] for student in p))}
     splits=[{'teacher':key[0],'unit':key[1],'rooms':dict(sorted(collections.Counter(assign[student['row']] for student in members).items()))} for key,members in groups.items()]
-    return {'assignments':assign,'rooms':rooms,'matrix':matrix,'splits':splits,'participants':len(p),'total':number,'regular':R,'special':len(special),'dedicated':len(dedicated),'overflow':0,'quota':0,'minimal':target is None,'balanced':balanced,'splitOptimal':split_optimal,'singleDeskIdeal':ideal,'singleDesk':True,'settings':c}
+    return {'assignments':assign,'rooms':rooms,'matrix':matrix,'splits':splits,'participants':len(p),'total':number,'regular':R,'special':reduced_rooms+(1 if separate else 0),'dedicated':len(dedicated),'overflow':0,'quota':0,'minimal':target is None,'balanced':balanced,'splitOptimal':split_optimal,'singleDeskIdeal':ideal,'singleDesk':True,'settings':c}
 
 def validate(book,c,a,R,kinds):
     p=book['participants'];assert set(a)=={r['row'] for r in p};assert len(kinds)<=c['limit']
     rooms=collections.defaultdict(list);groups=collections.defaultdict(set);three=set()
     for r in p:
         room=a[r['row']];rooms[room].append(r)
-        if r['flags']:assert kinds[room]=={'K':'מצומצם 1','L':'מצומצם 2','M':'נפרד'}[r['flags'][0]]
+        if r.get('separate'):assert kinds[room]=='נפרד'
+        elif is_reduced(r,c):assert kinds[room].startswith('מצומצם ')
         elif r['class'] in ['י7','יא7','יב7']:assert kinds[room]=='כיתה '+r['class']
         else:assert room<=R;groups[(r['teacher'],r['unit'])].add(room)
     over=0
@@ -288,40 +363,45 @@ def validate(book,c,a,R,kinds):
             if c.get('singleDesk',False):
                 combined=collections.Counter(('3' if unit in ('3','3א') else unit) for r in rr for unit in [r['unit']]);assert len(rr)<=20 and max(combined.values())<=13
             else:assert len(rr)<=c['maximum'] and max(u.values())<=c['level'] and not ('3' in u and '3א' in u);over+=len(rr)>c['normal']
+    reduced_numbers=[room for room,kind in kinds.items() if kind.startswith('מצומצם ')]
+    if len(reduced_numbers)==2:assert abs(len(rooms[reduced_numbers[0]])-len(rooms[reduced_numbers[1]]))<=3
+    extra_reduced={a[r['row']] for r in p if is_reduced(r,c) and is_extra_45(r)}
+    assert len(extra_reduced)<=1
     assert len([r for r in rooms if r<=R])==R
     if not c.get('singleDesk',False):assert over<=math.floor(R*c['percent']/100)
     if c.get('singleDesk',False):return
     for key,rs in groups.items():
-        size=sum(r['teacher']==key[0] and r['unit']==key[1] and not r['flags'] and r['class'] not in ['י7','יא7','יב7'] for r in p)
+        size=sum(r['teacher']==key[0] and r['unit']==key[1] and not r.get('separate') and not is_reduced(r,c) and r['class'] not in ['י7','יא7','יב7'] for r in p)
         assert len(rs)<=(2 if size<=32 else 3)
         if len(rs)==3:three.add(key[0])
     assert len(three)<=3
 
 def restore_result(book):
-    """Rebuild the displayed assignment solely from workbook column I."""
     participants=book['participants'];assignments={}
     for student in participants:
         raw=norm(student.get('assigned'))
         try:room=int(float(raw))
-        except (TypeError,ValueError):raise ValueError(f"שורה {student['row']}: הקובץ נעול אך חסר מספר חדר תקין בעמודה I.")
+        except (TypeError,ValueError):raise ValueError(f"שורה {student['row']}: חסר מספר חדר תקין בעמודה I.")
         if room<1 or room>25:raise ValueError(f"שורה {student['row']}: מספר החדר בעמודה I מחוץ לטווח 1–25.")
         assignments[student['row']]=room
     numbers=sorted(set(assignments.values()))
-    if numbers!=list(range(1,max(numbers,default=0)+1)):raise ValueError('הקובץ נעול אך מספרי החדרים בעמודה I אינם רציפים.')
+    if numbers!=list(range(1,max(numbers,default=0)+1)):raise ValueError('מספרי החדרים בעמודה I אינם רציפים.')
     by_room=collections.defaultdict(list)
     for student in participants:by_room[assignments[student['row']]].append(student)
-    kinds={};regular=[];special=[];dedicated=[];rooms=[]
+    kinds={};regular=[];special=[];dedicated=[];rooms=[];reduced_rooms=[]
     for room in numbers:
         members=by_room[room]
-        flags={s['flags'][0] for s in members if s['flags']}
+        has_separate=any(s.get('separate') for s in members);has_reduced=any(s.get('reduced') for s in members)
         classes={s['class'] for s in members if s['class'] in ['י7','יא7','יב7']}
-        if flags:
-            flag=next(iter(flags))
-            if len(flags)!=1 or any(not s['flags'] or s['flags'][0]!=flag for s in members):raise ValueError(f'חדר {room}: שיבוץ מיוחד לא עקבי בקובץ הנעול.')
-            kind={'K':'מצומצם 1','L':'מצומצם 2','M':'נפרד'}[flag];special.append(room)
+        if has_separate:
+            if any(not s.get('separate') for s in members):raise ValueError(f'חדר {room}: שיבוץ נפרד לא עקבי בקובץ.')
+            kind='נפרד';special.append(room)
+        elif has_reduced:
+            if any(not s.get('reduced') and not is_extra_45(s) for s in members):raise ValueError(f'חדר {room}: שיבוץ מצומצם לא עקבי בקובץ.')
+            reduced_rooms.append(room);kind=f'מצומצם {len(reduced_rooms)}';special.append(room)
         elif classes:
             dedicated_class=next(iter(classes))
-            if len(classes)!=1 or any(s['class']!=dedicated_class for s in members):raise ValueError(f'חדר {room}: שיבוץ כיתה ייעודית לא עקבי בקובץ הנעול.')
+            if len(classes)!=1 or any(s['class']!=dedicated_class for s in members):raise ValueError(f'חדר {room}: שיבוץ כיתה ייעודית לא עקבי בקובץ.')
             kind='כיתה '+dedicated_class;dedicated.append(room)
         else:kind='רגיל';regular.append(room)
         kinds[room]=kind;units=collections.Counter(s['unit'] for s in members)
@@ -334,7 +414,10 @@ def restore_result(book):
         matrix_rows.append({'teacher':key[0],'unit':key[1],'total':len(members),'counts':[counts.get(room,0) for room in numbers]})
         splits.append({'teacher':key[0],'unit':key[1],'rooms':dict(sorted(counts.items()))})
     matrix_rows.sort(key=lambda item:(item['teacher'],item['unit']))
-    settings_value={'normal':29,'maximum':32,'percent':30,'level':16,'limit':25,'singleDesk':False,'special':{}}
+    reduced_set=set(reduced_rooms)
+    has_added_extra=any(assignments[s['row']] in reduced_set and not s.get('reduced') and is_extra_45(s) for s in participants)
+    settings_value={'normal':29,'maximum':32,'percent':30,'level':16,'limit':25,'singleDesk':False,
+                    'reducedRooms':len(reduced_rooms),'extraTimePolicy':'reduced' if has_added_extra else 'regularTogether'}
     matrix={'rooms':numbers,'rows':matrix_rows,'roomTotals':[len(by_room[r]) for r in numbers],'unitTotals':dict(collections.Counter(s['unit'] for s in participants))}
     return {'assignments':assignments,'rooms':rooms,'matrix':matrix,'splits':splits,'participants':len(participants),'total':len(numbers),'regular':len(regular),'special':len(special),'dedicated':len(dedicated),'overflow':sum(r['overflow'] for r in rooms),'quota':math.floor(len(regular)*.3),'minimal':False,'balanced':False,'splitOptimal':False,'restored':True,'settings':settings_value}
 

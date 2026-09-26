@@ -15,9 +15,10 @@
   </header>
   <main id="databaseScreen">
     <div class="intro database-intro">
-      <span class="eyebrow">גרסה 15 · שלב 01</span>
+      <span class="eyebrow">גרסה 16 · שלב 01</span>
       <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
       <p>הכנת בסיס הנתונים לפני תחילת השיבוץ.</p>
+      <div class="info permanent-reminder"><b>לפני טעינה או עדכון:</b> בכל גיליון בקובץ נתוני המורים יש להזין את מספר היחידות בתא A1 ואת שם המורה בתא B1.</div>
     </div>
     <section class="panel database-panel">
       <div class="step"><span>01</span><h2>טעינה ראשונית או עדכון של קובץ קיים</h2></div>
@@ -26,8 +27,8 @@
         <label><input type="radio" name="databaseMode" value="update"><b>עדכון קובץ קיים</b><span>עדכון שינויים והפקת גיליון log לבדיקת תלמידים חדשים או חסרים.</span></label>
       </div>
       <div class="database-files">
-        <label class="file-card"><b>קובץ classlist</b><span>קובץ בסיס הנתונים המכיל את הגיליונות dbase וניהול</span><input id="databaseBaseFile" type="file" accept=".xlsx,.xlsm"></label>
-        <label class="file-card"><b>קובץ נתוני המורים</b><span>קובץ שבו גיליון אחד או יותר לכל מורה; שם המורה והיחידות בתא A1</span><input id="databaseInputFile" type="file" accept=".xlsx,.xlsm"></label>
+        <div class="file-card"><b>קובץ classlist</b><span>בחירה דרך Windows מאפשרת לשמור את כל קובצי הפלט באותה ספרייה.</span><button id="chooseDatabaseBase" type="button" class="secondary compact-button">בחירת קובץ classlist</button><p id="databaseBaseSelection" class="help">טרם נבחר קובץ.</p></div>
+        <label class="file-card"><b>קובץ נתוני המורים</b><span>בכל גיליון: A1 = מספר יחידות, B1 = שם המורה. נתוני התלמידים מתחילים בשורה 4.</span><input id="databaseInputFile" type="file" accept=".xlsx,.xlsm"></label>
       </div>
       <div id="databaseError" class="error" role="alert" hidden></div>
       <button id="processDatabase" class="primary" disabled>עדכן את בסיס הנתונים</button>
@@ -39,7 +40,7 @@
   </main>
   <main id="mainScreen" hidden>
     <div class="intro">
-      <span class="eyebrow">גרסה 15</span>
+      <span class="eyebrow">גרסה 16</span>
       <div class="title-and-grade">
         <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
         <section class="title-grade-picker" aria-labelledby="gradeTitle">
@@ -75,7 +76,8 @@
     <div class="workspace">
       <section class="panel">
         <div class="step"><span>02</span><h2>קובץ התלמידים</h2></div>
-        <label class="drop" id="drop"><span class="upload">↥</span><b>בחירת קובץ Excel או גרירה לכאן</b><span>XLSX או XLSM · עד 20 MB</span><input id="file" type="file" accept=".xlsx,.xlsm"></label>
+        <div id="gradeGate" class="info"><b>יש לבחור תחילה את שכבת המבחן בראש המסך.</b></div>
+        <button id="chooseClasslist" type="button" class="secondary">בחירת קובץ classlist</button>
         <div id="fileinfo" aria-live="polite"></div>
         <p class="note">השיבוץ מתבצע בגיליון dbase עבור תלמידים המסומנים 1 בעמודה J. שיבוצים קודמים של משתתפים יוחלפו.</p>
 
@@ -88,8 +90,8 @@
           <div class="field"><label for="limit">מספר חדרים מרבי כולל</label><input id="limit" type="number" min="1" max="25" value="25" required></div>
           <div class="field select-field"><label for="singleDesk"><b>בודד בשולחן</b></label><select id="singleDesk"><option value="no" selected>לא</option><option value="yes">כן - מבחן מתכונת</option></select></div>
           <div id="singleDeskInfo" class="info single-desk-info" hidden><b>מצב מבחן מתכונת</b><p>החדרים המיוחדים נשארים ללא שינוי. בשאר החדרים ישובצו עד 20 תלמידים, עם יעד של עד 10 מכל סוג יחידות והקלה עד 13 לצמצום חדרים ופיצולי מורים. לצורך הספירה 3 ו־3א נחשבים סוג אחד.</p></div>
-          <p class="note">מכסת החריגה מחושבת מחדרים רגילים בלבד, בעיגול מטה. חדרי כיתות 7 וחדרים מיוחדים אינם נכללים.</p>
-          <details><summary>כללים נוספים</summary><ul><li>במצב רגיל אין ערבוב 3 ו־3א בחדרים רגילים.</li><li>כל כיתת י7, יא7 או יב7 בחדר נפרד, בסוף החדרים הרגילים.</li><li>עד שני חדרים לקבוצת מורה ויחידות עם עד 32 תלמידים רגילים; עד שלושה לקבוצה גדולה יותר.</li><li>עד שלושה מורים עם קבוצות המפוצלות לשלושה חדרים.</li><li>חדרים מיוחדים לפי K, L, M, לאחר הרגילים. סוגים ריקים אינם מקבלים מספר.</li><li>מותר לערבב 3 ו־3א בחדרים המיוחדים. קיבולת כל חדר טעונה הזנה.</li><li>במצב „בודד בשולחן” ניתן לשלב יותר משני סוגי יחידות בחדר, ו־3 עם 3א נספרים יחד.</li><li>השורות והמאקרו נשמרים. המאקרו אינו מורץ.</li></ul></details>
+          <p class="note">מכסת החריגה מחושבת מחדרים רגילים בלבד, בעיגול מטה. חדרי כיתות 7 והחדרים המיוחדים אינם נכללים.</p>
+          <details open><summary>כללים נוספים</summary><ul><li>עמודה L בלבד משמשת לסימון תלמידי חדר מצומצם; עמודה K נשמרת לשימוש עתידי.</li><li>לאחר טעינת הקובץ המערכת מציגה את מספר תלמידי החדר המצומצם ומבקשת לבחור חדר אחד או שניים.</li><li>בשני חדרים מצומצמים הפער יהיה עד 3 תלמידים; תלמידי 4/5 ירוכזו יחד ככל האפשר, ותלמידי 4/5 עם 33%/50% תוספת זמן יהיו באותו חדר.</li><li>תלמידי 4/5 עם 33%/50% תוספת זמן יוצגו לבחירת שיבוץ: הוספה למצומצם או ריכוז יחד ככל האפשר בחדרים אחרים.</li><li>חדר נפרד לפי עמודה M נשמר ללא שינוי ואינו דורש אישור נוסף.</li><li>במצב רגיל אין ערבוב 3 ו־3א בחדרים רגילים.</li><li>כל כיתת י7, יא7 או יב7 בחדר נפרד, בסוף החדרים הרגילים.</li><li>עד שני חדרים לקבוצת מורה ויחידות עם עד 32 תלמידים רגילים; עד שלושה לקבוצה גדולה יותר.</li><li>עד שלושה מורים עם קבוצות המפוצלות לשלושה חדרים.</li><li>במצב „בודד בשולחן” ניתן לשלב יותר משני סוגי יחידות בחדר, ו־3 עם 3א נספרים יחד.</li><li>השורות והמאקרו נשמרים. המאקרו אינו מורץ.</li></ul></details>
           <div id="special"></div>
         </form>
         <button id="run" class="primary" disabled>חשב שיבוץ</button>
@@ -169,7 +171,7 @@
     <div class="intro">
       <span class="eyebrow">שלב 07</span>
       <h1>קביעת מקומות ישיבה בחדרי הבחינה</h1>
-      <p>המערכת מפרידה ככל האפשר בין תלמידים מאותן יחידות ומכינה דף A4 לרוחב לכל חדר שאינו חדר מיוחד.</p>
+      <p>המערכת מפרידה ככל האפשר בין תלמידים מאותן יחידות ומפיקה קובץ PDF אחד, עם עמוד A4 לרוחב לכל חדר שאינו חדר מיוחד.</p>
     </div>
     <section class="panel seating-panel">
       <div class="step"><span>07</span><h2>הפקת סידורי הישיבה</h2></div>
@@ -177,7 +179,7 @@
       <div id="seatingError" class="error" role="alert" hidden></div>
       <div class="wizard-actions"><button id="backToRoomMap" class="secondary">חזרה למספרי החדרים</button><button id="makeSeatingPlans" class="primary">הפק סידורי ישיבה</button></div>
       <p id="seatingStatus" class="note" role="status" aria-live="polite"></p>
-      <div id="seatingSuccess" class="success" hidden><b>סידורי הישיבה מוכנים.</b><p id="seatingDetails"></p><div id="seatingFileList" class="teacher-file-list"></div><div class="button-row"><button id="downloadSeatingPlans" class="primary">הורדת כל סידורי הישיבה ZIP</button><button id="openSeatingPlans" class="secondary">פתח תיקיית סידורי הישיבה</button></div></div>
+      <div id="seatingSuccess" class="success" hidden><b>סידורי הישיבה מוכנים.</b><p id="seatingDetails"></p><div id="seatingFileList" class="teacher-file-list"></div><div class="button-row"><button id="downloadSeatingPlans" class="primary">הורדת PDF סידורי הישיבה</button><button id="openSeatingPlans" class="secondary">פתח PDF</button></div></div>
     </section>
   </main>
   <footer>נוצר על ידי אסי וינברגר</footer>

@@ -1,4 +1,4 @@
-import json, os, sys, io, secrets, threading, traceback, webbrowser, multiprocessing as mp, time, base64
+import json, os, sys, io, secrets, threading, traceback, webbrowser, multiprocessing as mp, time, base64, subprocess
 from datetime import datetime
 from pathlib import Path
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -23,14 +23,50 @@ def work(conn,book,config,target):
 def main():
     base=Path(getattr(sys,'_MEIPASS',Path(__file__).parent))
     app_dir=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Path(__file__).resolve().parent
-    output_dir=app_dir/'Output'
-    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'databaseOutput':None,'databaseName':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'schedulePdfPath':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None,'readingList':None,'readingListPath':None,'seatingPlansZip':None,'seatingPlansZipPath':None,'seatingPlansDir':None,'seatingPlansMeta':None,'management':{'roomLabels':{}},'lastHeartbeat':time.monotonic(),'heartbeatStarted':False}
+    fallback_output_dir=app_dir/'Output'
+    token=secrets.token_urlsafe(32);lock=threading.RLock();state={'process':None,'book':None,'result':None,'output':None,'baseTotal':None,'databaseOutput':None,'databaseName':None,'databaseBaseData':None,'databaseBaseName':None,'databaseBasePath':None,'sourcePath':None,'sourceDir':None,'generatedWorkbookPath':None,'envelope':None,'envelopePath':None,'envelopeMeta':None,'matrixPdf':None,'matrixPdfPath':None,'matrixPdfMeta':None,'schedulePdfPath':None,'teacherReportsZip':None,'teacherReportsZipPath':None,'teacherReportsDir':None,'teacherReportsMeta':None,'readingList':None,'readingListPath':None,'seatingPlansPdf':None,'seatingPlansPdfPath':None,'seatingPlansMeta':None,'management':{'roomLabels':{}},'lastHeartbeat':time.monotonic(),'heartbeatStarted':False}
     def cancel():
         p=state.get('process')
         if p is not None:
             if p.is_alive():p.terminate()
             p.join(timeout=2);state['process']=None
             state['conn'].close()
+    def current_output_dir():
+        return Path(state.get('sourceDir') or fallback_output_dir)
+    def generated_workbook_path(source_path):
+        source=Path(source_path);stem=source.stem+'_v16' if source.stem.endswith('_updated') else source.stem+'_updated'
+        return source.with_name(stem+source.suffix)
+    def persist_workbook(data):
+        target=state.get('generatedWorkbookPath')
+        if target:
+            Path(target).write_bytes(data)
+            return str(target)
+        return ''
+    def choose_excel_file():
+        if os.name!='nt':raise ValueError('בחירת נתיב מקור זמינה בגרסת Windows.')
+        script=("$OutputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();"
+                "Add-Type -AssemblyName System.Windows.Forms;"
+                "$d=New-Object System.Windows.Forms.OpenFileDialog;"
+                "$d.Filter='Excel files (*.xlsx;*.xlsm)|*.xlsx;*.xlsm';"
+                "$d.Multiselect=$false;"
+                "if($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){Write-Output $d.FileName}")
+        result=subprocess.run(['powershell.exe','-NoProfile','-STA','-WindowStyle','Hidden','-Command',script],
+                              capture_output=True,text=True,encoding='utf-8',errors='replace')
+        if result.returncode!=0:raise ValueError('לא ניתן לפתוח את חלון בחירת הקובץ.')
+        value=(result.stdout or '').replace('\ufeff','').strip()
+        return Path(value) if value else None
+    def activate_book(data,name,source_path=None):
+        cancel()
+        book=read_book(data);management=read_management(data);restored_result=None
+        if all(str(student.get('assigned','')).strip() for student in book['participants']):
+            try:restored_result=restore_result(book)
+            except ValueError:restored_result=None
+        cleaned=update_management(data);base_total=restored_result.get('total') if restored_result else None
+        if source_path:
+            source=Path(source_path).resolve();state['sourcePath']=str(source);state['sourceDir']=str(source.parent);state['generatedWorkbookPath']=str(generated_workbook_path(source))
+        state.update(data=cleaned,book=read_book(cleaned),name=Path(name).name,management=management,result=restored_result,output=cleaned if restored_result else None,baseTotal=base_total,baseResult=restored_result,baseOutput=cleaned if restored_result else None,seatingPlansPdf=None,seatingPlansPdfPath=None,seatingPlansMeta=None)
+        return {'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'reducedCount':book.get('reducedCount',0),'separateCount':book.get('separateCount',0),'extraTimeCandidates':book.get('extraTimeCandidates',[]),'dedicated':book['dedicated'],'management':management,'restoredResult':restored_result,'baseTotal':base_total,'grade':'','filename':Path(name).name,'sourceDir':state.get('sourceDir')}
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,format,*args):
             if DEBUG:super().log_message(format,*args)
@@ -61,7 +97,7 @@ def main():
                             msg=state['conn'].recv();p.join(timeout=1);state['process']=None;state['conn'].close()
                             if msg['ok']:
                                 try:
-                                    result=msg['result'];output=write_book(state['data'],state['book'],result);output=update_management(output);state['result']=result;state['output']=output;state['envelope']=None;state['envelopePath']=None;state['envelopeMeta']=None;state['matrixPdf']=None;state['matrixPdfPath']=None;state['matrixPdfMeta']=None;state['teacherReportsZip']=None;state['teacherReportsZipPath']=None;state['teacherReportsDir']=None;state['teacherReportsMeta']=None
+                                    result=msg['result'];output=write_book(state['data'],state['book'],result);output=update_management(output);persist_workbook(output);state['result']=result;state['output']=output;state['envelope']=None;state['envelopePath']=None;state['envelopeMeta']=None;state['matrixPdf']=None;state['matrixPdfPath']=None;state['matrixPdfMeta']=None;state['teacherReportsZip']=None;state['teacherReportsZipPath']=None;state['teacherReportsDir']=None;state['teacherReportsMeta']=None
                                     if state['isBase']:state['baseTotal']=result['total'];state['baseResult']=result;state['baseOutput']=output
                                 except Exception as e:msg={'ok':False,'error':'שמירת הפלט נכשלה: '+str(e)}
                             if not msg['ok']:state['error']=msg['error']
@@ -81,8 +117,8 @@ def main():
                     self.send(200,state['teacherReportsZip'],'application/zip');return
                 if path=='/download-reading-list' and state.get('readingList'):
                     self.send(200,state['readingList'],'application/pdf');return
-                if path=='/download-seating-plans' and state.get('seatingPlansZip'):
-                    self.send(200,state['seatingPlansZip'],'application/zip');return
+                if path=='/download-seating-plans' and state.get('seatingPlansPdf'):
+                    self.send(200,state['seatingPlansPdf'],'application/pdf');return
             self.send(404,{'error':'לא נמצאה תוצאה.'})
         def do_POST(self):
             if not self.valid_host():return
@@ -92,27 +128,40 @@ def main():
                 if not 0<=length<=60_000_000:raise ValueError('הבקשה גדולה מדי. כל קובץ מוגבל ל־20 MB.')
                 raw=self.rfile.read(length);path=urlparse(self.path).path
                 with lock:
+                    if path=='/select-database-base':
+                        selected=choose_excel_file()
+                        if not selected:self.send(200,{'cancelled':True});return
+                        if selected.suffix.lower() not in ('.xlsx','.xlsm'):raise ValueError('נדרש קובץ XLSX או XLSM.')
+                        data=selected.read_bytes()
+                        if not data or len(data)>20_000_000:raise ValueError('קובץ classlist חייב להיות עד 20 MB.')
+                        state.update(databaseBaseData=data,databaseBaseName=selected.name,databaseBasePath=str(selected),
+                                     sourcePath=str(selected),sourceDir=str(selected.parent),generatedWorkbookPath=str(generated_workbook_path(selected)))
+                        self.send(200,{'filename':selected.name,'path':str(selected)});return
+                    if path=='/select-classlist':
+                        selected=choose_excel_file()
+                        if not selected:self.send(200,{'cancelled':True});return
+                        if selected.suffix.lower() not in ('.xlsx','.xlsm'):raise ValueError('נדרש קובץ XLSX או XLSM.')
+                        data=selected.read_bytes()
+                        if not data or len(data)>20_000_000:raise ValueError('קובץ classlist חייב להיות עד 20 MB.')
+                        self.send(200,activate_book(data,selected.name,selected));return
+                    if path=='/use-database-output':
+                        if not state.get('databaseOutput'):raise ValueError('אין קובץ classlist מעודכן להמשך.')
+                        self.send(200,activate_book(state['databaseOutput'],state['databaseName'],state.get('databaseBasePath')));return
                     if path=='/database-import':
-                        payload=json.loads(raw or b'{}');mode=payload.get('mode');base_name=Path(payload.get('baseName','')).name
-                        try:
-                            base_data=base64.b64decode(payload.get('baseData',''),validate=True)
-                            input_data=base64.b64decode(payload.get('inputData',''),validate=True)
-                        except Exception:raise ValueError('לא ניתן לקרוא את קובצי הקלט.')
-                        if not base_data or not input_data or len(base_data)>20_000_000 or len(input_data)>20_000_000:raise ValueError('יש לבחור שני קובצי Excel תקינים, עד 20 MB לכל קובץ.')
+                        payload=json.loads(raw or b'{}');mode=payload.get('mode')
+                        base_data=state.get('databaseBaseData');base_name=state.get('databaseBaseName')
+                        try:input_data=base64.b64decode(payload.get('inputData',''),validate=True)
+                        except Exception:raise ValueError('לא ניתן לקרוא את קובץ נתוני המורים.')
+                        if not base_data or not base_name:raise ValueError('יש לבחור קובץ classlist.')
+                        if not input_data or len(input_data)>20_000_000:raise ValueError('יש לבחור קובץ נתוני מורים תקין, עד 20 MB.')
                         output,meta=import_database(base_data,input_data,mode,base_name)
                         state.update(databaseOutput=output,databaseName=base_name)
-                        self.send(200,{**meta,'filename':base_name});return
+                        saved=persist_workbook(output)
+                        self.send(200,{**meta,'filename':base_name,'savedPath':saved});return
                     if path=='/upload':
-                        cancel();state.update(book=None,result=None,output=None,baseTotal=None,error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None,readingList=None,readingListPath=None)
                         name=unquote(self.headers.get('X-Filename','input.xlsx'))
                         if Path(name).suffix.lower() not in ['.xlsm','.xlsx']:raise ValueError('נדרש קובץ XLSX או XLSM.')
-                        book=read_book(raw);management=read_management(raw);restored_result=None
-                        if all(str(student.get('assigned','')).strip() for student in book['participants']):
-                            try:restored_result=restore_result(book)
-                            except ValueError:restored_result=None
-                        cleaned=update_management(raw);base_total=restored_result.get('total') if restored_result else None
-                        state.update(data=cleaned,book=read_book(cleaned),name=Path(name).name,management=management,result=restored_result,output=cleaned if restored_result else None,baseTotal=base_total,baseResult=restored_result,baseOutput=cleaned if restored_result else None,seatingPlansZip=None,seatingPlansZipPath=None,seatingPlansDir=None,seatingPlansMeta=None)
-                        self.send(200,{'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'dedicated':book['dedicated'],'management':management,'restoredResult':restored_result,'baseTotal':base_total,'grade':''});return
+                        self.send(200,activate_book(raw,name));return
                     if path=='/run':
                         if not state['book']:raise ValueError('יש לטעון קובץ תחילה.')
                         if state['process'] is not None:raise ValueError('חישוב כבר פועל.')
@@ -132,23 +181,30 @@ def main():
                         cancel()
                         if not state['baseTotal']:raise ValueError('אין שיבוץ בסיס.')
                         state.update(result=state['baseResult'],output=state['baseOutput'],error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None);self.send(200,{'ok':True});return
+                    if path=='/validation-report':
+                        if not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני שמירת דוח הבדיקות.')
+                        report={key:value for key,value in state['result'].items() if key!='assignments'}
+                        current_output_dir().mkdir(parents=True,exist_ok=True)
+                        target=current_output_dir()/'room-assignment-report.json'
+                        target.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
+                        self.send(200,{'filename':target.name,'path':str(target)});return
                     if path=='/matrix-pdf':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
                         if not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת המטריצה.')
                         pdf,meta=create_matrix_pdf(state['result'],base)
-                        output_dir.mkdir(parents=True,exist_ok=True)
+                        current_output_dir().mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                        target=output_dir/f'teachers_rooms_matrix_{stamp}.pdf';target.write_bytes(pdf)
+                        target=current_output_dir()/f'teachers_rooms_matrix_{stamp}.pdf';target.write_bytes(pdf)
                         state.update(matrixPdf=pdf,matrixPdfPath=target,matrixPdfMeta=meta)
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
                     if path=='/schedule-pdf':
                         payload=json.loads(raw or b'{}');pdf,meta=create_schedule_pdf(payload.get('schedule'),base)
-                        output_dir.mkdir(parents=True,exist_ok=True)
+                        current_output_dir().mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                        target=output_dir/f'exam_times_{stamp}.pdf';target.write_bytes(pdf)
+                        target=current_output_dir()/f'exam_times_{stamp}.pdf';target.write_bytes(pdf)
                         state['schedulePdfPath']=target
-                        if os.name=='nt':os.startfile(str(output_dir))
-                        else:webbrowser.open(output_dir.resolve().as_uri())
+                        if os.name=='nt':os.startfile(str(current_output_dir()))
+                        else:webbrowser.open(current_output_dir().resolve().as_uri())
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
                     if path=='/teacher-reports':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
@@ -159,41 +215,39 @@ def main():
                         except (TypeError,ValueError):raise ValueError('מיפוי מספרי חדרי הבחינה אינו תקין.')
                         archive,reports,meta=create_teacher_reports(state['book'],state['result'],room_labels,base)
                         reading_pdf,reading_meta=create_reading_list_pdf(state['book'],state['result'],room_labels,base)
-                        output_dir.mkdir(parents=True,exist_ok=True)
+                        current_output_dir().mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                        report_dir=output_dir/f'teacher_reports_{stamp}';report_dir.mkdir()
+                        report_dir=current_output_dir()
                         for report_name,report_data in reports.items():(report_dir/report_name).write_bytes(report_data)
                         reading_target=report_dir/'reading_list.pdf';reading_target.write_bytes(reading_pdf)
-                        zip_target=output_dir/f'teacher_reports_{stamp}.zip';zip_target.write_bytes(archive)
+                        zip_target=report_dir/f'teacher_reports_{stamp}.zip';zip_target.write_bytes(archive)
                         source=state.get('output') or state['data'];updated=update_management(source,room_labels=room_labels)
-                        state['management']['roomLabels']=room_labels;state.update(output=updated,teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta,readingList=reading_pdf,readingListPath=reading_target)
+                        persist_workbook(updated);state['management']['roomLabels']=room_labels;state.update(output=updated,teacherReportsZip=archive,teacherReportsZipPath=zip_target,teacherReportsDir=report_dir,teacherReportsMeta=meta,readingList=reading_pdf,readingListPath=reading_target)
                         self.send(200,{**meta,**reading_meta,'filename':zip_target.name,'readingFilename':reading_target.name,'path':str(report_dir)});return
                     if path=='/seating-plans':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
                         if not state.get('book') or not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת סידורי ישיבה.')
                         labels=state.get('management',{}).get('roomLabels') or {}
                         if not labels:raise ValueError('יש להשלים תחילה את מספרי החדרים ולהפיק את דוחות המורים.')
-                        archive,reports,meta=create_seating_plans(state['book'],state['result'],labels,base)
-                        output_dir.mkdir(parents=True,exist_ok=True);stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                        report_dir=output_dir/f'seating_plans_{stamp}';report_dir.mkdir()
-                        for report_name,report_data in reports.items():(report_dir/report_name).write_bytes(report_data)
-                        zip_target=output_dir/f'seating_plans_{stamp}.zip';zip_target.write_bytes(archive)
-                        state.update(seatingPlansZip=archive,seatingPlansZipPath=zip_target,seatingPlansDir=report_dir,seatingPlansMeta=meta)
-                        self.send(200,{**meta,'filename':zip_target.name,'path':str(report_dir)});return
+                        pdf,meta=create_seating_plans(state['book'],state['result'],labels,base)
+                        current_output_dir().mkdir(parents=True,exist_ok=True);stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+                        target=current_output_dir()/f'seating_plans_{stamp}.pdf';target.write_bytes(pdf)
+                        state.update(seatingPlansPdf=pdf,seatingPlansPdfPath=target,seatingPlansMeta=meta)
+                        self.send(200,{**meta,'filename':target.name,'path':str(target)});return
                     if path=='/envelopes':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
                         if not state.get('book') or not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת מעטפות.')
                         payload=json.loads(raw);grade=payload.get('grade');notes=payload.get('notes',[])
                         pdf,meta=create_envelopes_pdf(state['book'],state['result'],grade,notes,base)
-                        output_dir.mkdir(parents=True,exist_ok=True)
+                        current_output_dir().mkdir(parents=True,exist_ok=True)
                         stamp=datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-                        target=output_dir/f'exam_envelopes_{stamp}.pdf';target.write_bytes(pdf)
+                        target=current_output_dir()/f'exam_envelopes_{stamp}.pdf';target.write_bytes(pdf)
                         state.update(envelope=pdf,envelopePath=target,envelopeMeta=meta)
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
                     if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports','/open-seating-plans','/open-output']:
-                        target=state.get('envelopePath') if path=='/open-pdf' else state.get('matrixPdfPath') if path=='/open-matrix-pdf' else state.get('teacherReportsDir') if path=='/open-teacher-reports' else state.get('seatingPlansDir') if path=='/open-seating-plans' else output_dir
+                        target=state.get('envelopePath') if path=='/open-pdf' else state.get('matrixPdfPath') if path=='/open-matrix-pdf' else state.get('teacherReportsDir') if path=='/open-teacher-reports' else state.get('seatingPlansPdfPath') if path=='/open-seating-plans' else current_output_dir()
                         if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports','/open-seating-plans'] and (not target or not Path(target).exists()):raise ValueError('לא נמצא קובץ או תיקיית פלט לפתיחה.')
-                        if path=='/open-output':output_dir.mkdir(parents=True,exist_ok=True)
+                        if path=='/open-output':current_output_dir().mkdir(parents=True,exist_ok=True)
                         if os.name=='nt':os.startfile(str(target))
                         else:webbrowser.open(Path(target).resolve().as_uri())
                         self.send(200,{'ok':True});return
