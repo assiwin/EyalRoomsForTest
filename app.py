@@ -34,7 +34,7 @@ def main():
     def current_output_dir():
         return Path(state.get('sourceDir') or fallback_output_dir)
     def generated_workbook_path(source_path):
-        source=Path(source_path);stem=source.stem if source.stem.endswith('_updated') else source.stem+'_updated'
+        source=Path(source_path);stem=source.stem+'_v16' if source.stem.endswith('_updated') else source.stem+'_updated'
         return source.with_name(stem+source.suffix)
     def persist_workbook(data):
         target=state.get('generatedWorkbookPath')
