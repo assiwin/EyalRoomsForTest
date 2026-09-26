@@ -1,22 +1,7 @@
-13.0.0
+14.0.0
 
 New in this version:
-- Added an initial database preparation stage with two choices: create a new classlist database or update an existing one.
-- Imports every teacher worksheet, parses teacher name and study level from A1, and maps student data into dbase while preserving XLSX/XLSM structure and VBA.
-- Existing database updates are matched by student ID, update changed name/class/teacher/unit fields, and create a log worksheet for changes and students requiring manual addition/removal review.
-- Added automatic seat assignment for every non-special exam room, with 32 seats, unit-separation rules, and front-row placement for students marked 1 in dbase column N.
-- Produces one landscape A4 PDF per eligible room and downloads all seating plans as a ZIP archive.
-- The downloaded workbook is the sole source of truth for assignments and room mappings; no local-computer session file is used.
-- Removed the locking mechanism completely from the workbook, server and user interface.
-- Legacy lock cells management!E1:E2 are removed automatically when an older workbook is loaded and saved.
-- Assignment room numbers remain in column I of dbase, and physical room mappings are stored in management!A2:B26.
-- A valid existing assignment is restored directly from column I without requiring a lock flag.
-- The updated workbook is downloaded with the exact original filename and original XLSX/XLSM format.
-- The downloaded workbook preserves the original workbook structure, formatting and VBA, adding only the management worksheet when the source did not already contain it.
-- Fixed worksheet XML cell ordering and range metadata to prevent Excel recovery errors when management cells already exist.
-- Added a prominent updated-workbook download button after teacher reports are produced.
-- Added an A4 reading-accommodation PDF for active students marked "כן" in column F.
-- The reading list contains student name, internal room number and physical exam room.
-- Physical-room mappings are saved in worksheet "ניהול" at A2:B26 and restored on the next upload.
-- Closing the app no longer displays a closing page. A heartbeat shuts down the local process after its browser tab is gone.
-- Retains all Version 10 assignment, schedule, matrix, envelope and teacher-report behavior.
+- Fixed initial database import so student data is read from row 4 (B4) rather than row 3, preventing the header row from being interpreted as a student and causing a false duplicate-ID error.
+- Keeps the corrected teacher-workbook parsing already on main, including support for A1 layouts where the study level appears before the teacher name.
+- Added Eyal Schiff to the application credit footer alongside Assi Vinberger.
+- Retains all Version 13 assignment, Excel-preservation, reporting, room-mapping, and seating-plan behavior unchanged.
