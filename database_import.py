@@ -219,8 +219,9 @@ def _add_or_replace_sheet(files, name, rows):
         cells = ''.join(_cell(chr(65 + index), number, value) for index, value in enumerate(values))
         sheet_rows.append(f'<row r="{number}">{cells}</row>')
     files[path] = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-                   f'<worksheet xmlns="{MAIN_NS}"><sheetViews><sheetView rightToLeft="1" workbookViewId="0"/></sheetViews>'
-                   f'<dimension ref="A1:E{max(1, len(rows))}"/><sheetFormatPr defaultRowHeight="18"/>'
+                   f'<worksheet xmlns="{MAIN_NS}"><dimension ref="A1:E{max(1, len(rows))}"/>'
+                   '<sheetViews><sheetView rightToLeft="1" workbookViewId="0"/></sheetViews>'
+                   '<sheetFormatPr defaultRowHeight="18"/>'
                    '<cols><col min="1" max="1" width="19" customWidth="1"/><col min="2" max="5" width="28" customWidth="1"/></cols>'
                    f'<sheetData>{"".join(sheet_rows)}</sheetData><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>').encode('utf-8')
 
@@ -265,18 +266,41 @@ def import_database(base_data, input_data, mode, base_filename):
         for student_id in sorted(set(existing) & set(incoming)):
             row_number, old = existing[student_id]
             student = incoming[student_id]
+            details = []
             for column in ('B', 'C', 'G', 'H'):
                 before, after = _norm(old.get(column)), student[keys[column]]
                 if before != after:
                     xml = _set_cell(xml, f'{column}{row_number}', after)
-                    log_rows.append([now, 'עדכון', student_id, student['name'],
-                                     f'{labels[column]}: „{before}” ← „{after}”'])
-                    changes += 1
-        for student_id in sorted(set(existing) - set(incoming)):
+                    details.append(f'{labels[column]}: „{before}” ← „{after}”')
+            if details:
+                log_rows.append([now, 'עדכון', student_id, student['name'], '; '.join(details)])
+                changes += 1
+
+        missing_ids = sorted(set(existing) - set(incoming))
+        new_ids = sorted(set(incoming) - set(existing))
+        new_by_signature = {}
+        for student_id in new_ids:
+            student = incoming[student_id]
+            signature = tuple(_norm(student[key]) for key in ('name', 'class', 'teacher', 'unit'))
+            new_by_signature.setdefault(signature, []).append(student_id)
+        matched_new_ids = set()
+
+        for student_id in missing_ids:
             _, old = existing[student_id]
+            detail = 'יש לבדוק אם התלמיד עזב ויש למחוק אותו ידנית.'
+            signature = tuple(_norm(old.get(column)) for column in ('B', 'C', 'G', 'H'))
+            candidates = [candidate for candidate in new_by_signature.get(signature, [])
+                          if candidate not in matched_new_ids]
+            if candidates:
+                matched_id = candidates[0]
+                matched_new_ids.add(matched_id)
+                detail += f' בקלט נמצא תלמיד עם אותם פרטים ותעודת זהות {matched_id}; יש לבדוק ידנית את תעודת הזהות.'
             log_rows.append([now, 'לבדיקה - תלמיד לא נמצא בקלט', student_id,
-                             _norm(old.get('B')), 'יש לבדוק אם התלמיד עזב ויש למחוק אותו ידנית.'])
-        for student_id in sorted(set(incoming) - set(existing)):
+                             _norm(old.get('B')), detail])
+
+        for student_id in new_ids:
+            if student_id in matched_new_ids:
+                continue
             student = incoming[student_id]
             detail = f"כיתה {student['class']}, מורה {student['teacher']}, {student['unit']} יחידות"
             log_rows.append([now, 'לבדיקה - תלמיד חדש', student_id, student['name'], detail])

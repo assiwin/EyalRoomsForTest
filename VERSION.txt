@@ -1,7 +1,10 @@
-14.0.0
+15.0.0
 
 New in this version:
-- Fixed initial database import so student data is read from row 4 (B4) rather than row 3, preventing the header row from being interpreted as a student and causing a false duplicate-ID error.
-- Keeps the corrected teacher-workbook parsing already on main, including support for A1 layouts where the study level appears before the teacher name.
-- Added Eyal Schiff to the application credit footer alongside Assi Vinberger.
-- Retains all Version 13 assignment, Excel-preservation, reporting, room-mapping, and seating-plan behavior unchanged.
+- Built from the Version 13 code baseline, before Version 14.
+- Fixed the update-workbook log worksheet XML so Excel opens the downloaded file without repairing sheet3.xml.
+- Counts an updated student once even when several fields change, and writes all of that student's field changes into one log row.
+- Missing students are never added or deleted automatically; the log only records the manual action required.
+- Prevents a duplicate add/delete log pair when an input-only row matches a missing database row in name, class, teacher and study level but has a different ID; the database row remains unchanged and the discrepancy is flagged for manual ID review.
+- BUGS2 regression case now produces 1 updated student and 3 log entries.
+- Retains the Version 13 database-import fix that starts reading teacher data from row 4.

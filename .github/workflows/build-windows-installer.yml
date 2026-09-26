@@ -34,6 +34,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ExamRoomApp_Setup_v14
-          path: installer_output/ExamRoomApp_Setup_v14.exe
+          name: ExamRoomApp_Setup_v15
+          path: installer_output/ExamRoomApp_Setup_v15.exe
           if-no-files-found: error
