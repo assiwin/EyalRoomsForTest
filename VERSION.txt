@@ -13,3 +13,5 @@ New in this version:
 - Lists all 4/5 students with 33%/50% extra time and lets the user choose whether eligible students are added to reduced rooms or concentrated together in regular rooms.
 - Keeps the separate-room behavior from column M without requiring an extra confirmation.
 - Produces one multi-page seating-plan PDF instead of separate PDFs per room.
+- Creates a separate teacher PDF for every teacher and study-level combination.
+- Saves generated workbooks, reports and PDFs in the output folder; screens provide folder actions instead of duplicate browser downloads.

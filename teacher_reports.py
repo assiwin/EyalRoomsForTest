@@ -107,7 +107,7 @@ def _teacher_pdf(teacher, students, room_labels, font_base):
 
 
 def create_teacher_reports(book, result, room_labels, font_base):
-    """Return (zip_bytes, reports, metadata), with one PDF in reports per teacher."""
+    """Return (zip_bytes, reports, metadata), with one PDF per teacher and study unit."""
     labels = _validate_room_labels(result, room_labels)
     assignments = result.get('assignments') or {}
     by_teacher_unit = defaultdict(list)
@@ -118,8 +118,10 @@ def create_teacher_reports(book, result, room_labels, font_base):
             raise ValueError(f"שורה {student['row']}: המשתתף לא שובץ לחדר.")
         item = dict(student)
         item['assigned_room'] = int(room)
-        teacher = str(student.get('teacher', '') or '')
-        unit = str(student.get('unit', '') or '')
+        teacher = str(student.get('teacher', '') or '').strip()
+        unit = str(student.get('unit', '') or '').strip()
+        if not teacher or not unit:
+            raise ValueError(f"שורה {student['row']}: חסרים שם מורה או יחידות לימוד.")
         teachers.add(teacher)
         by_teacher_unit[(teacher, unit)].append(item)
     if not by_teacher_unit:
@@ -139,6 +141,7 @@ def create_teacher_reports(book, result, room_labels, font_base):
     return archive.getvalue(), reports, {
         'teachers': len(teachers),
         'groups': len(reports),
+        'reports': len(reports),
         'students': sum(len(v) for v in by_teacher_unit.values()),
         'files': list(reports),
     }

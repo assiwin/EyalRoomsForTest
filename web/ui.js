@@ -89,7 +89,7 @@ function controls(){
   const gradeReady=!!selectedGrade(),scheduleValid=$('scheduleForm').checkValidity(),valid=gradeReady&&loaded&&scheduleValid&&$('settings').checkValidity()&&Number($('normal').value)<=Number($('maximum').value);
   $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input,select').forEach(e=>e.disabled=busy||!gradeReady);$('chooseClasslist').disabled=busy||!gradeReady;
   $('scheduleForm').querySelectorAll('input').forEach(e=>e.disabled=busy||!gradeReady);$('resetSchedule').disabled=busy||!gradeReady;$('makeSchedulePdf').disabled=busy||schedulePdfBusy||!gradeReady||!loaded||!scheduleValid;
-  $('openAssignmentOutput').disabled=busy;$('report').disabled=busy;$('reset').disabled=busy;$('next').disabled=busy||!pdfInfo;$('nextHelp').hidden=!result||!!pdfInfo;target();envelopeControls();
+  $('openAssignmentOutput').disabled=busy;$('reset').disabled=busy;$('next').disabled=busy||!pdfInfo;$('nextHelp').hidden=!result||!!pdfInfo;target();envelopeControls();
 }
 function target(){const n=Number($('delta').value),sign=document.querySelector('input[name=op]:checked').value==='add'?1:-1;const t=baseTotal+sign*n;$('target').textContent=baseTotal?`בסיס: ${baseTotal} חדרים · יעד מבוקש: ${t}`:'';$('rebalance').disabled=busy||!baseTotal||!Number.isInteger(n)||n<1||t<1||t>Number($('limit').value)}
 
@@ -127,7 +127,7 @@ async function poll(){try{const s=await api('/status');busy=s.busy;if(busy){poll
 
 function matrix(r){const over=new Set(r.rooms.filter(x=>x.overflow).map(x=>x.room));return `<section class="matrix-section"><h3>מטריצת מורים וחדרים</h3><p class="note">בכל תא מוצג מספר התלמידים של המורה ורמת הלימוד ששובצו לחדר. ניתן לגלול לצדדים.</p><div class="matrixwrap"><table class="matrix"><thead><tr><th class="sticky-name">שם מורה</th><th class="sticky-unit">יחידות</th><th class="sticky-total">סה״כ</th>${r.matrix.rooms.map(n=>`<th class="${over.has(n)?'over':''}">${n}</th>`).join('')}<th>בדיקה</th></tr></thead><tbody>${r.matrix.rows.map(x=>`<tr><th class="sticky-name">${esc(x.teacher)}</th><td class="sticky-unit">${esc(x.unit)}</td><td class="sticky-total total">${x.total}</td>${x.counts.map(n=>`<td>${n||''}</td>`).join('')}<td class="check">${x.total-x.counts.reduce((a,b)=>a+b,0)}</td></tr>`).join('')}<tr class="grand"><th class="sticky-name">סה״כ</th><td class="sticky-unit"></td><td class="sticky-total">${r.participants}</td>${r.matrix.roomTotals.map((n,i)=>`<td class="${over.has(r.matrix.rooms[i])?'over':''}">${n}</td>`).join('')}<td>${r.participants-r.matrix.roomTotals.reduce((a,b)=>a+b,0)}</td></tr></tbody></table></div></section>`}
 function render(){
-  const r=result;$('adjust').hidden=!r;$('openAssignmentOutput').hidden=!r;$('report').hidden=!r;$('envelopeSection').hidden=!r;$('matrixCopySection').hidden=!r;$('next').hidden=!r;$('nextHelp').hidden=!r||!!pdfInfo;
+  const r=result;$('adjust').hidden=!r;$('openAssignmentOutput').hidden=!r;$('envelopeSection').hidden=!r;$('matrixCopySection').hidden=!r;$('next').hidden=!r;$('nextHelp').hidden=!r||!!pdfInfo;
   if(!r){$('results').innerHTML='<div class="empty"><span>▦</span><h3>תוצאות השיבוץ יוצגו כאן לאחר החישוב.</h3></div>';return}
   const loads=r.rooms.filter(x=>x.kind==='רגיל').map(x=>x.count);
   const ruleSummary=r.singleDesk?`מצב בודד בשולחן · עד 20 תלמידים בחדר · ${r.singleDeskIdeal?'נשמר יעד של עד 10 מכל סוג יחידות':'נעשה שימוש בהקלה של עד 13 מסוג יחידות'}`:`${r.overflow} חדרים חורגים, מתוך מכסה של ${r.quota}`;
@@ -153,7 +153,6 @@ $('run').onclick=()=>run('base');$('rebalance').onclick=()=>run('adjust');$('del
 $('cancel').onclick=async()=>{clearTimeout(pollTimer);try{await api('/cancel',{});poll()}catch(e){error(e.message)}};
 $('reset').onclick=async()=>{try{await api('/reset',{});poll()}catch(e){error(e.message)}};
 $('openAssignmentOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){error(e.message)}};
-$('report').onclick=async()=>{try{await api('/validation-report',{});await api('/open-output',{})}catch(e){error(e.message)}};
 
 $('makeMatrixPdf').onclick=async()=>{
   try{matrixPdfBusy=true;$('makeMatrixPdf').disabled=true;error('');$('matrixPdfSuccess').hidden=true;$('matrixPdfStatus').textContent='מכין עותק PDF של המטריצה…';matrixPdfInfo=await api('/matrix-pdf',{});$('matrixPdfDetails').textContent=`${matrixPdfInfo.teachers} שורות מורים · ${matrixPdfInfo.rooms} חדרים · ${matrixPdfInfo.students} תלמידים · ${matrixPdfInfo.pages} עמודים`;$('matrixPdfSuccess').hidden=false;$('matrixPdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה.'}
@@ -185,11 +184,11 @@ function collectRoomLabels(){
 }
 $('next').onclick=showRoomMap;$('back').onclick=showMain;$('backAfterReports').onclick=showMain;
 $('makeTeacherReports').onclick=async()=>{
-  try{const roomLabels=collectRoomLabels();teacherReportsBusy=true;updateRoomMapControls();setRoomMapError('');$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='מפיק דוחות מורים ורשימת הקראה…';teacherReportsInfo=await api('/teacher-reports',{roomLabels});savedRoomLabels=roomLabels;$('teacherReportsDetails').textContent=`נוצרו ${teacherReportsInfo.groups} דוחות PDF לקבוצות לימוד אצל ${teacherReportsInfo.teachers} מורים עבור ${teacherReportsInfo.students} תלמידים, ורשימת הקראה עבור ${teacherReportsInfo.readingStudents} תלמידים. מספרי החדרים נשמרו בקובץ Excel המעודכן.`;$('teacherFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+teacherReportsInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+`<li>${esc(teacherReportsInfo.readingFilename)}</li></ul>`;$('teacherReportsSuccess').hidden=false;$('teacherReportsStatus').textContent='השיבוץ ורשימת ההקראה הופקו, ומיפוי החדרים נשמר בגיליון „ניהול” של קובץ Excel המעודכן.'}
+  try{const roomLabels=collectRoomLabels();teacherReportsBusy=true;updateRoomMapControls();setRoomMapError('');$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='מפיק דוחות מורים ורשימת הקראה…';teacherReportsInfo=await api('/teacher-reports',{roomLabels});savedRoomLabels=roomLabels;$('teacherReportsDetails').textContent=`נוצרו ${teacherReportsInfo.reports} דוחות PDF נפרדים לפי מורה ורמת לימוד ל־${teacherReportsInfo.teachers} מורים ו־${teacherReportsInfo.students} תלמידים, ורשימת הקראה עבור ${teacherReportsInfo.readingStudents} תלמידים. מספרי החדרים נשמרו בקובץ Excel המעודכן.`;$('teacherFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+teacherReportsInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+`<li>${esc(teacherReportsInfo.readingFilename)}</li></ul>`;$('teacherReportsSuccess').hidden=false;$('teacherReportsStatus').textContent='השיבוץ ורשימת ההקראה הופקו, ומיפוי החדרים נשמר בגיליון „ניהול” של קובץ Excel המעודכן.'}
   catch(e){setRoomMapError(e.message);$('teacherReportsStatus').textContent='הפקת דוחות המורים נכשלה.'}
   finally{teacherReportsBusy=false;updateRoomMapControls()}
 };
-$('openTeacherReports').onclick=async()=>{try{await api('/open-teacher-reports',{})}catch(e){setRoomMapError(e.message)}};
+$('openTeacherReports').onclick=async()=>{try{await api('/open-output',{})}catch(e){setRoomMapError(e.message)}};
 $('nextToSeating').onclick=showSeating;$('backToRoomMap').onclick=showRoomMapAgain;
 $('makeSeatingPlans').onclick=async()=>{
   try{seatingBusy=true;$('makeSeatingPlans').disabled=true;$('seatingError').hidden=true;$('seatingSuccess').hidden=true;$('seatingStatus').textContent='מחשב מקומות ישיבה ומפיק PDF אחד עם עמוד נפרד לכל חדר…';seatingInfo=await api('/seating-plans',{});$('seatingDetails').textContent=`נוצר קובץ PDF אחד עם ${seatingInfo.pages} עמודים עבור ${seatingInfo.students} תלמידים.`;$('seatingFileList').textContent='';$('seatingSuccess').hidden=false;$('seatingStatus').textContent='הפקת סידורי הישיבה הסתיימה בהצלחה.'}

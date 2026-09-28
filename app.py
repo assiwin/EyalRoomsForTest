@@ -39,7 +39,7 @@ def main():
     def persist_workbook(data):
         target=state.get('generatedWorkbookPath')
         if target:
-            Path(target).write_bytes(data)
+            target=Path(target);target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
             return str(target)
         return ''
     def choose_excel_file():
@@ -62,8 +62,9 @@ def main():
             try:restored_result=restore_result(book)
             except ValueError:restored_result=None
         cleaned=update_management(data);base_total=restored_result.get('total') if restored_result else None
-        if source_path:
-            source=Path(source_path).resolve();state['sourcePath']=str(source);state['sourceDir']=str(source.parent);state['generatedWorkbookPath']=str(generated_workbook_path(source))
+        source=Path(source_path).resolve() if source_path else fallback_output_dir/Path(name).name
+        if not source_path:source.parent.mkdir(parents=True,exist_ok=True)
+        state['sourcePath']=str(source_path) if source_path else '';state['sourceDir']=str(source.parent);state['generatedWorkbookPath']=str(generated_workbook_path(source))
         state.update(data=cleaned,book=read_book(cleaned),name=Path(name).name,management=management,result=restored_result,output=cleaned if restored_result else None,baseTotal=base_total,baseResult=restored_result,baseOutput=cleaned if restored_result else None,seatingPlansPdf=None,seatingPlansPdfPath=None,seatingPlansMeta=None)
         return {'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'reducedCount':book.get('reducedCount',0),'separateCount':book.get('separateCount',0),'extraTimeCandidates':book.get('extraTimeCandidates',[]),'dedicated':book['dedicated'],'management':management,'restoredResult':restored_result,'baseTotal':base_total,'grade':'','filename':Path(name).name,'sourceDir':state.get('sourceDir')}
 
@@ -97,7 +98,7 @@ def main():
                             msg=state['conn'].recv();p.join(timeout=1);state['process']=None;state['conn'].close()
                             if msg['ok']:
                                 try:
-                                    result=msg['result'];output=write_book(state['data'],state['book'],result);output=update_management(output);persist_workbook(output);state['result']=result;state['output']=output;state['envelope']=None;state['envelopePath']=None;state['envelopeMeta']=None;state['matrixPdf']=None;state['matrixPdfPath']=None;state['matrixPdfMeta']=None;state['teacherReportsZip']=None;state['teacherReportsZipPath']=None;state['teacherReportsDir']=None;state['teacherReportsMeta']=None
+                                    result=msg['result'];output=write_book(state['data'],state['book'],result);output=update_management(output);persist_workbook(output);report={key:value for key,value in result.items() if key!='assignments'};report_target=current_output_dir()/'room-assignment-report.json';report_target.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8');state['result']=result;state['output']=output;state['envelope']=None;state['envelopePath']=None;state['envelopeMeta']=None;state['matrixPdf']=None;state['matrixPdfPath']=None;state['matrixPdfMeta']=None;state['teacherReportsZip']=None;state['teacherReportsZipPath']=None;state['teacherReportsDir']=None;state['teacherReportsMeta']=None
                                     if state['isBase']:state['baseTotal']=result['total'];state['baseResult']=result;state['baseOutput']=output
                                 except Exception as e:msg={'ok':False,'error':'שמירת הפלט נכשלה: '+str(e)}
                             if not msg['ok']:state['error']=msg['error']
@@ -105,20 +106,6 @@ def main():
                     self.send(200,{'busy':state['process'] is not None,'result':state['result'],'baseTotal':state['baseTotal'],'error':state.get('error')});return
                 if path=='/heartbeat':
                     state['lastHeartbeat']=time.monotonic();state['heartbeatStarted']=True;self.send(200,{'ok':True});return
-                if path=='/download' and state.get('output'):
-                    self.send(200,state['output'],'application/octet-stream');return
-                if path=='/download-database' and state.get('databaseOutput'):
-                    self.send(200,state['databaseOutput'],'application/octet-stream');return
-                if path=='/download-pdf' and state.get('envelope'):
-                    self.send(200,state['envelope'],'application/pdf');return
-                if path=='/download-matrix-pdf' and state.get('matrixPdf'):
-                    self.send(200,state['matrixPdf'],'application/pdf');return
-                if path=='/download-teacher-reports' and state.get('teacherReportsZip'):
-                    self.send(200,state['teacherReportsZip'],'application/zip');return
-                if path=='/download-reading-list' and state.get('readingList'):
-                    self.send(200,state['readingList'],'application/pdf');return
-                if path=='/download-seating-plans' and state.get('seatingPlansPdf'):
-                    self.send(200,state['seatingPlansPdf'],'application/pdf');return
             self.send(404,{'error':'לא נמצאה תוצאה.'})
         def do_POST(self):
             if not self.valid_host():return
@@ -181,13 +168,6 @@ def main():
                         cancel()
                         if not state['baseTotal']:raise ValueError('אין שיבוץ בסיס.')
                         state.update(result=state['baseResult'],output=state['baseOutput'],error=None,envelope=None,envelopePath=None,envelopeMeta=None,matrixPdf=None,matrixPdfPath=None,matrixPdfMeta=None,teacherReportsZip=None,teacherReportsZipPath=None,teacherReportsDir=None,teacherReportsMeta=None);self.send(200,{'ok':True});return
-                    if path=='/validation-report':
-                        if not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני שמירת דוח הבדיקות.')
-                        report={key:value for key,value in state['result'].items() if key!='assignments'}
-                        current_output_dir().mkdir(parents=True,exist_ok=True)
-                        target=current_output_dir()/'room-assignment-report.json'
-                        target.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-                        self.send(200,{'filename':target.name,'path':str(target)});return
                     if path=='/matrix-pdf':
                         if state.get('process') is not None:raise ValueError('יש להמתין לסיום החישוב.')
                         if not state.get('result'):raise ValueError('נדרש שיבוץ תקין לפני הפקת המטריצה.')
@@ -244,13 +224,11 @@ def main():
                         target=current_output_dir()/f'exam_envelopes_{stamp}.pdf';target.write_bytes(pdf)
                         state.update(envelope=pdf,envelopePath=target,envelopeMeta=meta)
                         self.send(200,{**meta,'filename':target.name,'path':str(target)});return
-                    if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports','/open-seating-plans','/open-output']:
-                        target=state.get('envelopePath') if path=='/open-pdf' else state.get('matrixPdfPath') if path=='/open-matrix-pdf' else state.get('teacherReportsDir') if path=='/open-teacher-reports' else state.get('seatingPlansPdfPath') if path=='/open-seating-plans' else current_output_dir()
-                        if path in ['/open-pdf','/open-matrix-pdf','/open-teacher-reports','/open-seating-plans'] and (not target or not Path(target).exists()):raise ValueError('לא נמצא קובץ או תיקיית פלט לפתיחה.')
-                        if path=='/open-output':current_output_dir().mkdir(parents=True,exist_ok=True)
+                    if path=='/open-output':
+                        target=current_output_dir();target.mkdir(parents=True,exist_ok=True)
                         if os.name=='nt':os.startfile(str(target))
-                        else:webbrowser.open(Path(target).resolve().as_uri())
-                        self.send(200,{'ok':True});return
+                        else:webbrowser.open(target.resolve().as_uri())
+                        self.send(200,{'ok':True,'path':str(target)});return
                     if path=='/shutdown':cancel();self.send(200,{'ok':True});threading.Thread(target=server.shutdown,daemon=True).start();return
                 self.send(404,{'error':'פעולה לא מוכרת.'})
             except (ValueError,KeyError,AssertionError) as e:self.send(400,{'error':str(e) or 'נתוני בקשה לא תקינים.'})
