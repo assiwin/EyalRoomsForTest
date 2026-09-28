@@ -101,6 +101,42 @@ jobs:
           assert students[0]['name'] == 'כהן דנה'
           assert students[0]['class'] == 'י1'
           print('A1/B1 teacher import OK')
+      - name: Validate teacher reports are split by study unit
+        shell: python
+        run: |
+          import io, os, sys, zipfile
+          sys.path.insert(0, os.environ['GITHUB_WORKSPACE'])
+          import teacher_reports
+          from teacher_reports import create_teacher_reports
+          teacher_reports._teacher_pdf = lambda teacher, students, labels, base: b'%PDF-' + b'x' * 1000
+          book = {'participants': [
+              {'row': 2, 'teacher': 'בן חיון גלית', 'unit': '3', 'name': 'תלמיד א'},
+              {'row': 3, 'teacher': 'בן חיון גלית', 'unit': '4', 'name': 'תלמיד ב'},
+              {'row': 4, 'teacher': 'מורה נוספת', 'unit': '3', 'name': 'תלמיד ג'},
+          ]}
+          result = {'assignments': {2: 1, 3: 2, 4: 1}, 'matrix': {'rooms': [1, 2]}}
+          archive, reports, meta = create_teacher_reports(book, result, {1: '51', 2: '52'}, os.environ['GITHUB_WORKSPACE'])
+          assert meta['teachers'] == 2 and meta['groups'] == 3, meta
+          assert len(reports) == 3, reports.keys()
+          names = sorted(reports)
+          assert any('בן חיון גלית_3.pdf' in name for name in names), names
+          assert any('בן חיון גלית_4.pdf' in name for name in names), names
+          with zipfile.ZipFile(io.BytesIO(archive)) as zf:
+              assert sorted(zf.namelist()) == names
+          print('Teacher reports split by teacher and study unit OK', names)
+      - name: Validate output screen has no duplicate-download controls
+        shell: python
+        run: |
+          from pathlib import Path
+          html = Path('web/index.html').read_text(encoding='utf-8')
+          js = Path('web/ui.js').read_text(encoding='utf-8')
+          forbidden_ids = ['downloadDatabase', 'download', 'downloadMatrixPdf', 'openMatrixPdf', 'downloadPdf', 'openPdf', 'downloadUpdatedWorkbook', 'downloadTeacherReports', 'downloadReadingList', 'downloadSeatingPlans', 'openSeatingPlans']
+          for value in forbidden_ids:
+              if f'id="{value}"' in html:
+                  raise SystemExit(f'Duplicate-download UI control remains: {value}')
+          if '.download=' in js or 'function save(blob,name)' in js:
+              raise SystemExit('Browser-download implementation remains in the UI')
+          print('Output screens provide folder access without browser-download controls')
       - name: Validate combined seating PDF
         shell: python
         run: |

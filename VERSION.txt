@@ -2,6 +2,8 @@
 
 New in this version:
 - Adds Eyal Schiff to the application credit.
+- Replaces duplicate browser downloads with buttons that open the folder containing generated files.
+- Creates a separate teacher PDF for each teacher and study-unit group.
 - Saves generated output files beside the selected classlist workbook when the Windows file chooser is used.
 - Requires selecting the exam grade before continuing with the assignment workflow.
 - Teacher import now reads the study level from A1 and the teacher name from B1 in every teacher worksheet; student rows still begin at row 4.

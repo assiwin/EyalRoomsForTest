@@ -1,4 +1,4 @@
-"""Create one student-to-physical-room PDF per teacher."""
+"""Create one student-to-physical-room PDF per teacher and study unit."""
 import io
 import re
 import zipfile
@@ -110,22 +110,26 @@ def create_teacher_reports(book, result, room_labels, font_base):
     """Return (zip_bytes, reports, metadata), with one PDF in reports per teacher."""
     labels = _validate_room_labels(result, room_labels)
     assignments = result.get('assignments') or {}
-    by_teacher = defaultdict(list)
+    by_teacher_unit = defaultdict(list)
+    teachers = set()
     for student in book.get('participants', []):
         room = assignments.get(student['row'])
         if room is None:
             raise ValueError(f"שורה {student['row']}: המשתתף לא שובץ לחדר.")
         item = dict(student)
         item['assigned_room'] = int(room)
-        by_teacher[student['teacher']].append(item)
-    if not by_teacher:
+        teacher = str(student.get('teacher', '') or '')
+        unit = str(student.get('unit', '') or '')
+        teachers.add(teacher)
+        by_teacher_unit[(teacher, unit)].append(item)
+    if not by_teacher_unit:
         raise ValueError('לא נמצאו תלמידים להפקת דוחות מורים.')
 
     reports = {}
-    for index, teacher in enumerate(sorted(by_teacher), 1):
-        students = sorted(by_teacher[teacher],
-                          key=lambda s: (_unit_key(s.get('unit')), labels[s['assigned_room']], s.get('name', '')))
-        filename = f'{index:02d}_{_safe_filename(teacher)}.pdf'
+    ordered_groups = sorted(by_teacher_unit.items(), key=lambda item: (item[0][0], _unit_key(item[0][1]), item[0][1]))
+    for index, ((teacher, unit), group_students) in enumerate(ordered_groups, 1):
+        students = sorted(group_students, key=lambda s: (labels[s['assigned_room']], s.get('name', '')))
+        filename = f'{index:02d}_{_safe_filename(teacher)}_{_safe_filename(unit)}.pdf'
         reports[filename] = _teacher_pdf(teacher, students, labels, font_base)
 
     archive = io.BytesIO()
@@ -133,7 +137,8 @@ def create_teacher_reports(book, result, room_labels, font_base):
         for filename, data in reports.items():
             zf.writestr(filename, data)
     return archive.getvalue(), reports, {
-        'teachers': len(reports),
-        'students': sum(len(v) for v in by_teacher.values()),
+        'teachers': len(teachers),
+        'groups': len(reports),
+        'students': sum(len(v) for v in by_teacher_unit.values()),
         'files': list(reports),
     }

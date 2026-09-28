@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id),token=document.querySelector('meta[name=app-token]').content;
-let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,schedulePdfBusy=false,teacherReportsBusy=false,seatingBusy=false,databaseBusy=false,databaseBaseSelected=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,seatingInfo=null,examSchedule=null,savedRoomLabels={},databaseBlob=null,databaseFilename='';
+let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,schedulePdfBusy=false,teacherReportsBusy=false,seatingBusy=false,databaseBusy=false,databaseBaseSelected=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,seatingInfo=null,examSchedule=null,savedRoomLabels={},databaseReady=false;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
@@ -41,33 +41,33 @@ async function api(path,body,raw=false){
   if(raw)headers['X-Filename']=encodeURIComponent(filename);else headers['Content-Type']='application/json';
   const r=await fetch(path,{method:body===undefined?'GET':'POST',headers,body:body===undefined?undefined:raw?body:JSON.stringify(body)});
   if(!r.ok){let message='הפעולה נכשלה';try{message=(await r.json()).error||message}catch{}throw Error(message)}
-  return ['/download','/download-database','/download-pdf','/download-matrix-pdf','/download-teacher-reports','/download-reading-list','/download-seating-plans'].includes(path)?r.blob():r.json();
+  return r.json();
 }
 
 function fileToBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(Error('קריאת הקובץ נכשלה.'));reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.readAsDataURL(file)})}
 function databaseControls(){const input=$('databaseInputFile').files[0];$('processDatabase').disabled=databaseBusy||!databaseBaseSelected||!input;$('chooseDatabaseBase').disabled=databaseBusy}
 function showAssignment(){$('databaseScreen').hidden=true;$('seatingScreen').hidden=true;$('mainScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'});controls()}
-document.querySelectorAll('input[name=databaseMode]').forEach(input=>input.onchange=()=>{$('databaseSuccess').hidden=true;databaseBlob=null;databaseControls()});
+document.querySelectorAll('input[name=databaseMode]').forEach(input=>input.onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()});
 $('chooseDatabaseBase').onclick=async()=>{
-  try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;const info=await api('/select-database-base',{});if(info.cancelled)return;databaseBaseSelected=true;$('databaseBaseSelection').textContent=info.path||info.filename;$('databaseSuccess').hidden=true;databaseBlob=null;$('databaseStatus').textContent='קובץ classlist נבחר. יש לבחור גם את קובץ נתוני המורים.'}
+  try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;const info=await api('/select-database-base',{});if(info.cancelled)return;databaseBaseSelected=true;$('databaseBaseSelection').textContent=info.path||info.filename;$('databaseSuccess').hidden=true;databaseReady=false;$('databaseStatus').textContent='קובץ classlist נבחר. יש לבחור גם את קובץ נתוני המורים.'}
   catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message}
   finally{databaseBusy=false;databaseControls()}
 };
-$('databaseInputFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseBlob=null;databaseControls()};
+$('databaseInputFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()};
 $('processDatabase').onclick=async()=>{
   const input=$('databaseInputFile').files[0],mode=document.querySelector('input[name=databaseMode]:checked')?.value;
   if(!databaseBaseSelected||!input)return;if(!confirm('הנך מעדכן את בסיס הנתונים, האם להמשיך?'))return;
   try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;$('databaseSuccess').hidden=true;$('databaseStatus').textContent='קורא את גיליונות המורים ומעדכן את קובץ classlist…';
     const info=await api('/database-import',{mode,inputName:input.name,inputData:await fileToBase64(input)});
-    databaseBlob=await api('/download-database');databaseFilename=info.filename;
+    databaseReady=true;
     const summary=mode==='new'?`${info.students} תלמידים מ־${info.sheets} גיליונות נכתבו לגיליון dbase.`:`נקראו ${info.students} תלמידים מ־${info.sheets} גיליונות. בוצעו ${info.changes} עדכוני תלמידים ונרשמו ${info.logEntries} רשומות בגיליון log.`;
     $('databaseDetails').textContent=summary+(info.savedPath?` הקובץ נשמר גם ב־${info.savedPath}.`:'');
-    $('databaseSuccess').hidden=false;$('databaseStatus').textContent='העדכון הסתיים בהצלחה. ניתן להוריד את הקובץ או להמשיך ישירות לשיבוץ.';
+    $('databaseSuccess').hidden=false;$('databaseStatus').textContent='העדכון הסתיים בהצלחה. הקובץ נשמר בתיקיית הפלט; ניתן לפתוח אותה או להמשיך לשיבוץ.';
   }catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message;$('databaseStatus').textContent='עדכון בסיס הנתונים נכשל.'}
   finally{databaseBusy=false;databaseControls()}
 };
-$('downloadDatabase').onclick=()=>{if(databaseBlob)save(databaseBlob,databaseFilename||'classlist.xlsm')};
-$('continueWithDatabase').onclick=async()=>{if(!databaseBlob)return;try{const b=await api('/use-database-output',{});showAssignment();applyLoadedResponse(b)}catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message}};
+$('openDatabaseOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message}};
+$('continueWithDatabase').onclick=async()=>{if(!databaseReady)return;try{const b=await api('/use-database-output',{});showAssignment();applyLoadedResponse(b)}catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message}};
 $('skipDatabase').onclick=showAssignment;
 function error(s){$('error').hidden=!s;$('error').textContent=s||''}
 function cfg(){const c={singleDesk:$('singleDesk').value==='yes',reducedRooms:0,extraTimePolicy:'regularTogether'};for(const k of ['normal','maximum','percent','level','limit'])c[k]=Number($(k).value);const reduced=document.querySelector('input[name=reducedRooms]:checked');if(reduced)c.reducedRooms=Number(reduced.value);const policy=document.querySelector('input[name=extraTimePolicy]:checked');if(policy)c.extraTimePolicy=policy.value;return c}
@@ -89,7 +89,7 @@ function controls(){
   const gradeReady=!!selectedGrade(),scheduleValid=$('scheduleForm').checkValidity(),valid=gradeReady&&loaded&&scheduleValid&&$('settings').checkValidity()&&Number($('normal').value)<=Number($('maximum').value);
   $('run').disabled=busy||!valid;$('cancel').hidden=!busy;$('settings').querySelectorAll('input,select').forEach(e=>e.disabled=busy||!gradeReady);$('chooseClasslist').disabled=busy||!gradeReady;
   $('scheduleForm').querySelectorAll('input').forEach(e=>e.disabled=busy||!gradeReady);$('resetSchedule').disabled=busy||!gradeReady;$('makeSchedulePdf').disabled=busy||schedulePdfBusy||!gradeReady||!loaded||!scheduleValid;
-  $('download').disabled=busy;$('report').disabled=busy;$('reset').disabled=busy;$('next').disabled=busy||!pdfInfo;$('nextHelp').hidden=!result||!!pdfInfo;target();envelopeControls();
+  $('openAssignmentOutput').disabled=busy;$('report').disabled=busy;$('reset').disabled=busy;$('next').disabled=busy||!pdfInfo;$('nextHelp').hidden=!result||!!pdfInfo;target();envelopeControls();
 }
 function target(){const n=Number($('delta').value),sign=document.querySelector('input[name=op]:checked').value==='add'?1:-1;const t=baseTotal+sign*n;$('target').textContent=baseTotal?`בסיס: ${baseTotal} חדרים · יעד מבוקש: ${t}`:'';$('rebalance').disabled=busy||!baseTotal||!Number.isInteger(n)||n<1||t<1||t>Number($('limit').value)}
 
@@ -123,16 +123,16 @@ function updateSingleDeskInfo(){$('singleDeskInfo').hidden=$('singleDesk').value
 $('settings').oninput=async()=>{updateSingleDeskInfo();clearTimeout(pollTimer);result=null;baseTotal=null;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();controls();try{await api('/invalidate',{})}catch(e){error(e.message)}};
 
 async function run(mode){if(!selectedGrade()){error('יש לבחור שכבת מבחן לפני המשך העבודה.');return}if(!$('settings').reportValidity())return;busy=true;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();controls();error('');$('status').textContent='מחפש שיבוץ תקין ומאזן חדרים. ניתן לבטל. החיפוש מוגבל בזמן.';try{await api('/run',{settings:cfg(),mode,delta:Number($('delta').value),op:document.querySelector('input[name=op]:checked').value});poll()}catch(e){busy=false;error(e.message);controls()}}
-async function poll(){try{const s=await api('/status');busy=s.busy;if(busy){pollTimer=setTimeout(poll,700);return}result=s.result;baseTotal=s.baseTotal;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();error(s.error);$('status').textContent=s.error?(result?'הניסיון לא הצליח. התוצאה התקינה הקודמת זמינה להורדה.':'לא נוצר שיבוץ.'):result?'החישוב הסתיים והקובץ עבר בדיקת שמירה.':'החישוב בוטל.';controls()}catch(e){busy=false;error(e.message);controls()}}
+async function poll(){try{const s=await api('/status');busy=s.busy;if(busy){pollTimer=setTimeout(poll,700);return}result=s.result;baseTotal=s.baseTotal;invalidatePdf();invalidateMatrixPdf();invalidateTeacherReports();render();error(s.error);$('status').textContent=s.error?(result?'הניסיון לא הצליח. התוצאה התקינה הקודמת נשמרה בתיקיית הפלט.':'לא נוצר שיבוץ.'):result?'החישוב הסתיים והקובץ עבר בדיקת שמירה.':'החישוב בוטל.';controls()}catch(e){busy=false;error(e.message);controls()}}
 
 function matrix(r){const over=new Set(r.rooms.filter(x=>x.overflow).map(x=>x.room));return `<section class="matrix-section"><h3>מטריצת מורים וחדרים</h3><p class="note">בכל תא מוצג מספר התלמידים של המורה ורמת הלימוד ששובצו לחדר. ניתן לגלול לצדדים.</p><div class="matrixwrap"><table class="matrix"><thead><tr><th class="sticky-name">שם מורה</th><th class="sticky-unit">יחידות</th><th class="sticky-total">סה״כ</th>${r.matrix.rooms.map(n=>`<th class="${over.has(n)?'over':''}">${n}</th>`).join('')}<th>בדיקה</th></tr></thead><tbody>${r.matrix.rows.map(x=>`<tr><th class="sticky-name">${esc(x.teacher)}</th><td class="sticky-unit">${esc(x.unit)}</td><td class="sticky-total total">${x.total}</td>${x.counts.map(n=>`<td>${n||''}</td>`).join('')}<td class="check">${x.total-x.counts.reduce((a,b)=>a+b,0)}</td></tr>`).join('')}<tr class="grand"><th class="sticky-name">סה״כ</th><td class="sticky-unit"></td><td class="sticky-total">${r.participants}</td>${r.matrix.roomTotals.map((n,i)=>`<td class="${over.has(r.matrix.rooms[i])?'over':''}">${n}</td>`).join('')}<td>${r.participants-r.matrix.roomTotals.reduce((a,b)=>a+b,0)}</td></tr></tbody></table></div></section>`}
 function render(){
-  const r=result;$('adjust').hidden=!r;$('download').hidden=!r;$('report').hidden=!r;$('envelopeSection').hidden=!r;$('matrixCopySection').hidden=!r;$('next').hidden=!r;$('nextHelp').hidden=!r||!!pdfInfo;
+  const r=result;$('adjust').hidden=!r;$('openAssignmentOutput').hidden=!r;$('report').hidden=!r;$('envelopeSection').hidden=!r;$('matrixCopySection').hidden=!r;$('next').hidden=!r;$('nextHelp').hidden=!r||!!pdfInfo;
   if(!r){$('results').innerHTML='<div class="empty"><span>▦</span><h3>תוצאות השיבוץ יוצגו כאן לאחר החישוב.</h3></div>';return}
   const loads=r.rooms.filter(x=>x.kind==='רגיל').map(x=>x.count);
   const ruleSummary=r.singleDesk?`מצב בודד בשולחן · עד 20 תלמידים בחדר · ${r.singleDeskIdeal?'נשמר יעד של עד 10 מכל סוג יחידות':'נעשה שימוש בהקלה של עד 13 מסוג יחידות'}`:`${r.overflow} חדרים חורגים, מתוך מכסה של ${r.quota}`;
   $('results').innerHTML=`<div class="summary"><div class="stat"><b>${r.participants}</b><span>תלמידים</span></div><div class="stat"><b>${r.total}</b><span>חדרים</span></div><div class="stat"><b>${loads.length?Math.min(...loads)+'–'+Math.max(...loads):'—'}</b><span>תפוסה בחדר רגיל</span></div></div><div class="success">כל בדיקות התקינות עברו.<br>${r.regular} רגילים · ${r.dedicated} ייעודיים · ${r.special} מיוחדים<br>${ruleSummary}</div><p class="note">${r.minimal?'מספר חדרים מינימלי הוכח.':'שיבוץ למספר החדרים שביקשת.'} ${r.balanced?'פער התפוסה המינימלי הוכח.':'נמצא פתרון תקין; מיטביות האיזון לא הוכחה בזמן החיפוש.'} ${r.splitOptimal?'פיצול הקבוצות צומצם באופן מיטבי עבור פער זה.':''}</p>${baseTotal!==r.total?`<div class="info">תוצאת הבסיס: ${baseTotal} חדרים · תוצאה נוכחית: ${r.total} חדרים</div>`:''}${matrix(r)}<details><summary>פירוט חדרים</summary><div class="tablewrap"><table><thead><tr><th>חדר</th><th>סוג</th><th>תלמידים</th><th>רמות לימוד</th><th>חריגה</th></tr></thead><tbody>${r.rooms.map(x=>`<tr><td>${x.room}</td><td>${esc(x.kind)}</td><td>${x.count}</td><td>${Object.entries(x.units).map(([u,n])=>esc(u)+': '+n).join(' · ')}</td><td>${x.overflow?'מעל '+r.settings.normal:'—'}</td></tr>`).join('')}</tbody></table></div></details><details><summary>פירוט קבוצות המורים</summary><div class="tablewrap"><table><thead><tr><th>מורה</th><th>יחידות</th><th>חדר: תלמידים</th></tr></thead><tbody>${r.splits.map(x=>`<tr><td>${esc(x.teacher)}</td><td>${esc(x.unit)}</td><td>${Object.entries(x.rooms).map(([n,c])=>n+': '+c).join(' · ')}</td></tr>`).join('')}</tbody></table></div></details>`;
-  $('download').textContent=`הורדת קובץ השיבוץ — ${r.total} חדרים`;refreshRoomOptions();target();
+  $('openAssignmentOutput').textContent=`פתח תיקיית הפלט — ${r.total} חדרים`;refreshRoomOptions();target();
 }
 
 function refreshRoomOptions(){
@@ -152,19 +152,14 @@ function collectNotes(){
 $('run').onclick=()=>run('base');$('rebalance').onclick=()=>run('adjust');$('delta').oninput=target;document.querySelectorAll('[name=op]').forEach(e=>e.onchange=target);
 $('cancel').onclick=async()=>{clearTimeout(pollTimer);try{await api('/cancel',{});poll()}catch(e){error(e.message)}};
 $('reset').onclick=async()=>{try{await api('/reset',{});poll()}catch(e){error(e.message)}};
-function save(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),2000)}
-async function downloadWorkbook(){try{save(await api('/download'),filename)}catch(e){error(e.message);setRoomMapError(e.message)}}
-$('download').onclick=downloadWorkbook;
-$('downloadUpdatedWorkbook').onclick=downloadWorkbook;
-$('report').onclick=async()=>{try{const info=await api('/validation-report',{});const {assignments,...report}=result;save(new Blob([JSON.stringify(report,null,2)],{type:'application/json;charset=utf-8'}),info.filename||'room-assignment-report.json')}catch(e){error(e.message)}};
+$('openAssignmentOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){error(e.message)}};
+$('report').onclick=async()=>{try{await api('/validation-report',{});await api('/open-output',{})}catch(e){error(e.message)}};
 
 $('makeMatrixPdf').onclick=async()=>{
   try{matrixPdfBusy=true;$('makeMatrixPdf').disabled=true;error('');$('matrixPdfSuccess').hidden=true;$('matrixPdfStatus').textContent='מכין עותק PDF של המטריצה…';matrixPdfInfo=await api('/matrix-pdf',{});$('matrixPdfDetails').textContent=`${matrixPdfInfo.teachers} שורות מורים · ${matrixPdfInfo.rooms} חדרים · ${matrixPdfInfo.students} תלמידים · ${matrixPdfInfo.pages} עמודים`;$('matrixPdfSuccess').hidden=false;$('matrixPdfStatus').textContent='הפקת הקובץ הסתיימה בהצלחה.'}
   catch(e){error(e.message);$('matrixPdfStatus').textContent='הפקת מטריצת המורים והחדרים נכשלה.'}
   finally{matrixPdfBusy=false;$('makeMatrixPdf').disabled=false}
 };
-$('downloadMatrixPdf').onclick=async()=>{try{save(await api('/download-matrix-pdf'),matrixPdfInfo?.filename||'teachers_rooms_matrix.pdf')}catch(e){error(e.message)}};
-$('openMatrixPdf').onclick=async()=>{try{await api('/open-matrix-pdf',{})}catch(e){error(e.message)}};
 $('openMatrixOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){error(e.message)}};
 
 function roomMapInputs(){return [...document.querySelectorAll('.physical-room')]}
@@ -190,12 +185,10 @@ function collectRoomLabels(){
 }
 $('next').onclick=showRoomMap;$('back').onclick=showMain;$('backAfterReports').onclick=showMain;
 $('makeTeacherReports').onclick=async()=>{
-  try{const roomLabels=collectRoomLabels();teacherReportsBusy=true;updateRoomMapControls();setRoomMapError('');$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='מפיק דוחות מורים ורשימת הקראה…';teacherReportsInfo=await api('/teacher-reports',{roomLabels});savedRoomLabels=roomLabels;$('teacherReportsDetails').textContent=`נוצרו ${teacherReportsInfo.teachers} קובצי PDF למורים עבור ${teacherReportsInfo.students} תלמידים, ורשימת הקראה עבור ${teacherReportsInfo.readingStudents} תלמידים. מספרי החדרים נשמרו בקובץ Excel המעודכן.`;$('teacherFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+teacherReportsInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+`<li>${esc(teacherReportsInfo.readingFilename)}</li></ul>`;$('teacherReportsSuccess').hidden=false;$('teacherReportsStatus').textContent='השיבוץ ורשימת ההקראה הופקו, ומיפוי החדרים נשמר בגיליון „ניהול” של קובץ Excel המעודכן.'}
+  try{const roomLabels=collectRoomLabels();teacherReportsBusy=true;updateRoomMapControls();setRoomMapError('');$('teacherReportsSuccess').hidden=true;$('teacherReportsStatus').textContent='מפיק דוחות מורים ורשימת הקראה…';teacherReportsInfo=await api('/teacher-reports',{roomLabels});savedRoomLabels=roomLabels;$('teacherReportsDetails').textContent=`נוצרו ${teacherReportsInfo.groups} דוחות PDF לקבוצות לימוד אצל ${teacherReportsInfo.teachers} מורים עבור ${teacherReportsInfo.students} תלמידים, ורשימת הקראה עבור ${teacherReportsInfo.readingStudents} תלמידים. מספרי החדרים נשמרו בקובץ Excel המעודכן.`;$('teacherFileList').innerHTML='<b>הקבצים שנוצרו:</b><ul>'+teacherReportsInfo.files.map(name=>`<li>${esc(name)}</li>`).join('')+`<li>${esc(teacherReportsInfo.readingFilename)}</li></ul>`;$('teacherReportsSuccess').hidden=false;$('teacherReportsStatus').textContent='השיבוץ ורשימת ההקראה הופקו, ומיפוי החדרים נשמר בגיליון „ניהול” של קובץ Excel המעודכן.'}
   catch(e){setRoomMapError(e.message);$('teacherReportsStatus').textContent='הפקת דוחות המורים נכשלה.'}
   finally{teacherReportsBusy=false;updateRoomMapControls()}
 };
-$('downloadTeacherReports').onclick=async()=>{try{save(await api('/download-teacher-reports'),teacherReportsInfo?.filename||'teacher_room_assignments.zip')}catch(e){setRoomMapError(e.message)}};
-$('downloadReadingList').onclick=async()=>{try{save(await api('/download-reading-list'),teacherReportsInfo?.readingFilename||'reading_list.pdf')}catch(e){setRoomMapError(e.message)}};
 $('openTeacherReports').onclick=async()=>{try{await api('/open-teacher-reports',{})}catch(e){setRoomMapError(e.message)}};
 $('nextToSeating').onclick=showSeating;$('backToRoomMap').onclick=showRoomMapAgain;
 $('makeSeatingPlans').onclick=async()=>{
@@ -203,8 +196,7 @@ $('makeSeatingPlans').onclick=async()=>{
   catch(e){$('seatingError').hidden=false;$('seatingError').textContent=e.message;$('seatingStatus').textContent='הפקת סידורי הישיבה נכשלה.'}
   finally{seatingBusy=false;$('makeSeatingPlans').disabled=false}
 };
-$('downloadSeatingPlans').onclick=async()=>{try{save(await api('/download-seating-plans'),seatingInfo?.filename||'seating_plans.pdf')}catch(e){$('seatingError').hidden=false;$('seatingError').textContent=e.message}};
-$('openSeatingPlans').onclick=async()=>{try{await api('/open-seating-plans',{})}catch(e){$('seatingError').hidden=false;$('seatingError').textContent=e.message}};
+$('openSeatingOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){$('seatingError').hidden=false;$('seatingError').textContent=e.message}};
 
 $('addNote').onclick=addNoteRow;document.querySelectorAll('input[name=grade]').forEach(x=>x.onchange=()=>{updateGradeDisplay();invalidatePdf();controls()});
 $('makePdf').onclick=async()=>{
@@ -212,10 +204,8 @@ $('makePdf').onclick=async()=>{
   catch(e){error(e.message);$('pdfStatus').textContent='הפקת דפי המעטפות נכשלה.'}
   finally{pdfBusy=false;controls()}
 };
-$('downloadPdf').onclick=async()=>{try{save(await api('/download-pdf'),pdfInfo?.filename||'exam_envelopes.pdf')}catch(e){error(e.message)}};
-$('openPdf').onclick=async()=>{try{await api('/open-pdf',{})}catch(e){error(e.message)}};
 $('openOutput').onclick=async()=>{try{await api('/open-output',{})}catch(e){error(e.message)}};
-$('exit').onclick=async()=>{if(!confirm('לסגור את האפליקציה המקומית? הורידו קודם את התוצאה הרצויה.'))return;try{await api('/shutdown',{})}finally{window.close()}};
+$('exit').onclick=async()=>{if(!confirm('לסגור את האפליקציה המקומית? פתחו קודם את תיקיית הפלט ושמרו את הקבצים במקום הרצוי.'))return;try{await api('/shutdown',{})}finally{window.close()}};
 
 setInterval(()=>api('/heartbeat').catch(()=>{}),15000);api('/heartbeat').catch(()=>{});
 
