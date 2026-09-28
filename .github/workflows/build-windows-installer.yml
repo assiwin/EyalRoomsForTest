@@ -123,7 +123,7 @@ jobs:
           assert any('בן חיון גלית_4.pdf' in name for name in names), names
           with zipfile.ZipFile(io.BytesIO(archive)) as zf:
               assert sorted(zf.namelist()) == names
-          print('Teacher reports split by teacher and study unit OK', names)
+          print('Teacher reports split by study unit OK:', len(names))
       - name: Validate output screen has no duplicate-download controls
         shell: python
         run: |
