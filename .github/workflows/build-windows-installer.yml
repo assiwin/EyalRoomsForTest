@@ -172,7 +172,7 @@ jobs:
       - name: Upload UI verification screenshots
         uses: actions/upload-artifact@v4
         with:
-          name: About_v20_screenshots
+          name: About_v21_screenshots
           path: ui-checks/*.png
           if-no-files-found: error
       - name: Build application
@@ -190,6 +190,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ExamRoomApp_Setup_v20
-          path: installer_output/ExamRoomApp_Setup_v20.exe
+          name: ExamRoomApp_Setup_v21
+          path: installer_output/ExamRoomApp_Setup_v21.exe
           if-no-files-found: error

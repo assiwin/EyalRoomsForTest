@@ -1,3 +1,10 @@
+21.0.0
+
+New in this version:
+- Database update walks every identified dbase row regardless of the participant marker in J.
+- Reports unmatched records, including unmatched nonparticipants, while preserving those rows for manual review.
+
+Previous version:
 20.0.0
 
 New in this version:

@@ -272,15 +272,21 @@ def import_database(base_data, input_data, mode, base_filename):
         incoming = {student['id']: student for student in students}
         nonparticipants = {student_id for student_id, (_, row) in existing.items()
                            if _norm(row.get('J')) != '1'}
-        matched_ids = set(existing) & set(incoming)
-        matched_nonparticipants = len(matched_ids & nonparticipants)
+        matched_nonparticipants = 0
         updated_nonparticipants = 0
+        missing_ids = []
         labels = {'B': 'שם תלמיד', 'C': 'כיתה', 'G': 'מורה', 'H': 'יחידות'}
         keys = {'B': 'name', 'C': 'class', 'G': 'teacher', 'H': 'unit'}
         now = datetime.now().strftime('%d/%m/%Y %H:%M')
-        for student_id in sorted(matched_ids):
-            row_number, old = existing[student_id]
-            student = incoming[student_id]
+        # Walk every dbase student row, even when J is blank or zero. J controls
+        # exam seating elsewhere, but must never limit a database update.
+        for student_id, (row_number, old) in existing.items():
+            student = incoming.get(student_id)
+            if student is None:
+                missing_ids.append(student_id)
+                continue
+            if student_id in nonparticipants:
+                matched_nonparticipants += 1
             details = []
             for column in ('B', 'C', 'G', 'H'):
                 before, after = _norm(old.get(column)), student[keys[column]]
@@ -293,7 +299,7 @@ def import_database(base_data, input_data, mode, base_filename):
                 if student_id in nonparticipants:
                     updated_nonparticipants += 1
 
-        missing_ids = sorted(set(existing) - set(incoming))
+        missing_ids.sort()
         new_ids = sorted(set(incoming) - set(existing))
         new_by_signature = {}
         for student_id in new_ids:
@@ -329,5 +335,7 @@ def import_database(base_data, input_data, mode, base_filename):
     if mode == 'update':
         meta.update(dbaseRecords=len(existing), dbaseNonParticipants=len(nonparticipants),
                     matchedNonParticipants=matched_nonparticipants,
-                    updatedNonParticipants=updated_nonparticipants)
+                    updatedNonParticipants=updated_nonparticipants,
+                    unmatchedRecords=len(missing_ids),
+                    unmatchedNonParticipants=len(nonparticipants) - matched_nonparticipants)
     return value, meta

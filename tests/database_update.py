@@ -72,6 +72,7 @@ assert rows[3]['B'] == 'כהן ב' and rows[4]['B'] == 'כהן ג'
 assert rows[5]['B'] == 'ישן ד'
 assert meta['dbaseRecords'] == 4 and meta['dbaseNonParticipants'] == 3
 assert meta['matchedNonParticipants'] == 2 and meta['updatedNonParticipants'] == 2
+assert meta['unmatchedRecords'] == 1 and meta['unmatchedNonParticipants'] == 1
 assert meta['changes'] == 3 and meta['logEntries'] == 4
 
 # A populated row without an ID must be reported instead of silently skipped.
