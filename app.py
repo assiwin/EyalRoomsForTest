@@ -87,8 +87,9 @@ def main():
             if path=='/':
                 # Local bootstrap page; mutating requests require per-run token and same-origin access.
                 self.send(200,(base/'web/index.html').read_text(encoding='utf8').replace('__TOKEN__',token).encode(),'text/html; charset=utf-8');return
-            if path in ['/style.css','/ui.js']:
-                self.send(200,(base/'web'/path[1:]).read_bytes(),'text/css; charset=utf-8' if path.endswith('css') else 'text/javascript; charset=utf-8');return
+            if path in ['/style.css','/ui.js','/app_icon.png']:
+                content_type='image/png' if path.endswith('.png') else 'text/css; charset=utf-8' if path.endswith('.css') else 'text/javascript; charset=utf-8'
+                self.send(200,(base/'web'/path[1:]).read_bytes(),content_type);return
             if not self.auth():return
             with lock:
                 if path=='/status':

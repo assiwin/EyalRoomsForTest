@@ -1,3 +1,9 @@
+19.0.0
+
+New in this version:
+- Adds an illustrated exam-student-at-a-desk icon to the app, browser header and Windows shortcuts.
+
+Previous version:
 18.0.0
 
 New in this version:
