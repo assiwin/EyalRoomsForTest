@@ -1,3 +1,11 @@
+18.0.0
+
+New in this version:
+- Adds a discreet About button in the top corner on every application screen.
+- Moves the version, credits and application information into an accessible About dialog.
+- Removes version labels and the credit footer from the workflow screens.
+
+Previous version:
 17.0.0
 
 New in this version:

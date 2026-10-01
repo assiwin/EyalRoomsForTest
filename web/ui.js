@@ -2,6 +2,15 @@ const $=id=>document.getElementById(id),token=document.querySelector('meta[name=
 let loaded=false,busy=false,pdfBusy=false,matrixPdfBusy=false,schedulePdfBusy=false,teacherReportsBusy=false,seatingBusy=false,databaseBusy=false,databaseBaseSelected=false,filename='',baseTotal=null,result=null,pollTimer=null,uploadEpoch=0,pdfInfo=null,matrixPdfInfo=null,teacherReportsInfo=null,seatingInfo=null,examSchedule=null,savedRoomLabels={},databaseReady=false;
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
+// Native dialog keeps keyboard focus inside and supports Escape to close.
+$('about').onclick=()=>{if(!$('aboutDialog').open)$('aboutDialog').showModal()};
+$('closeAbout').onclick=()=>$('aboutDialog').close();
+$('aboutDialog').addEventListener('click',event=>{
+  const bounds=$('aboutDialog').getBoundingClientRect();
+  if(event.target===$('aboutDialog')&&(event.clientX<bounds.left||event.clientX>bounds.right||event.clientY<bounds.top||event.clientY>bounds.bottom))$('aboutDialog').close();
+});
+$('aboutDialog').addEventListener('close',()=>$('about').focus({preventScroll:true}));
+
 const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
 const scheduleDefaults={'3a':{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'08:45',duration:160},5:{start:'10:35',duration:130}};
 function scheduleEnd(start,duration,extra){

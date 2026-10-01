@@ -10,12 +10,14 @@
 <body>
   <header>
     <div class="brand"><span class="mark">▦</span><b>סדרן חדרים</b></div>
-    <span class="privacy">עיבוד מקומי בלבד · Windows</span>
-    <button id="exit" class="smallbutton">סגירת האפליקציה</button>
+    <div class="header-actions">
+      <button id="exit" class="smallbutton" type="button">סגירת האפליקציה</button>
+      <button id="about" class="about-button" type="button" aria-haspopup="dialog" aria-controls="aboutDialog">אודות</button>
+    </div>
   </header>
   <main id="databaseScreen">
     <div class="intro database-intro">
-      <span class="eyebrow">גרסה 17 · שלב 01</span>
+      <span class="eyebrow">שלב 01</span>
       <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
       <p>הכנת בסיס הנתונים לפני תחילת השיבוץ.</p>
       <div class="info permanent-reminder"><b>לפני טעינה או עדכון:</b> בכל גיליון בקובץ נתוני המורים יש להזין את מספר היחידות בתא A1 ואת שם המורה בתא B1.</div>
@@ -40,7 +42,6 @@
   </main>
   <main id="mainScreen" hidden>
     <div class="intro">
-      <span class="eyebrow">גרסה 17</span>
       <div class="title-and-grade">
         <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
         <section class="title-grade-picker" aria-labelledby="gradeTitle">
@@ -181,7 +182,20 @@
       <div id="seatingSuccess" class="success" hidden><b>סידורי הישיבה מוכנים.</b><p id="seatingDetails"></p><div id="seatingFileList" class="teacher-file-list"></div><div class="button-row"><button id="openSeatingOutput" class="primary">פתח תיקיית פלט</button></div></div>
     </section>
   </main>
-  <footer>נוצר על ידי אסי וינברגר ואייל שיף</footer>
+  <dialog id="aboutDialog" class="about-dialog" aria-labelledby="aboutTitle">
+    <div class="about-heading"><h2 id="aboutTitle">אודות סדרן חדרים</h2><button id="closeAbout" class="about-close" type="button" aria-label="סגירת חלון אודות" autofocus>×</button></div>
+    <p>אפליקציה לשיבוץ חדרים לנבחנים ולהכנת קובצי הבחינה.</p>
+    <dl class="about-details">
+      <div><dt>גרסה</dt><dd><b dir="ltr">18.0.0</b></dd></div>
+      <div><dt>נוצר על ידי</dt><dd>אסי וינברגר ואייל שיף</dd></div>
+      <div><dt>מערכת הפעלה</dt><dd>Windows 10 / 11, ‏64 ביט</dd></div>
+    </dl>
+    <h3>מה אפשר לעשות באפליקציה?</h3>
+    <p>עדכון בסיס נתוני התלמידים, שיבוץ לפי כללי הבחינה, חישוב זמני הבחינה, הפקת מטריצת מורים וחדרים, דפי מעטפות, דוחות מורים, רשימת הקראה וסידורי ישיבה.</p>
+    <h3>נתונים וקובצי פלט</h3>
+    <p>הנתונים מעובדים במחשב המקומי בלבד. קובץ המקור נשמר ללא שינוי. הקבצים שנוצרים נשמרים לצד קובץ ה־classlist שנבחר דרך חלון Windows; כשאין נתיב מקור, הם נשמרים בתיקיית Output של האפליקציה. כפתורי „פתח תיקיית פלט” מציגים את הקבצים שנוצרו.</p>
+    <p class="note">בעת דיווח על תקלה, ציינו את מספר הגרסה המופיע כאן.</p>
+  </dialog>
   <script src="ui.js"></script>
 </body>
 </html>

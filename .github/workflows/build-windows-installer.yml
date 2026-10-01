@@ -162,6 +162,17 @@ jobs:
           assert pdf.startswith(b'%PDF-') and len(pdf)>1000
           assert meta['pages']==meta['rooms'] and meta['rooms']>=1
           print('Combined seating PDF OK',meta)
+      - name: Verify About dialog and workflow controls
+        shell: pwsh
+        run: |
+          npm install --no-save playwright
+          node tests/about-ui.cjs
+      - name: Upload UI verification screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: About_v18_screenshots
+          path: ui-checks/*.png
+          if-no-files-found: error
       - name: Build application
         shell: cmd
         run: >-
@@ -177,6 +188,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ExamRoomApp_Setup_v17
-          path: installer_output/ExamRoomApp_Setup_v17.exe
+          name: ExamRoomApp_Setup_v18
+          path: installer_output/ExamRoomApp_Setup_v18.exe
           if-no-files-found: error
