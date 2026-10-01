@@ -1,3 +1,11 @@
+20.0.0
+
+New in this version:
+- Database update explicitly processes every identified dbase row regardless of the participant marker in column J.
+- Reports how many nonparticipants were read, matched, and updated; preserves unmatched rows and J values.
+- Rejects dbase student rows without an ID or with duplicate IDs instead of silently omitting them.
+
+Previous version:
 19.0.0
 
 New in this version:

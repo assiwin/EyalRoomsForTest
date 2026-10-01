@@ -237,6 +237,23 @@ def _write(infos, files):
     return value
 
 
+def _dbase_records(rows):
+    """Index every student row by ID, regardless of its participant marker in J."""
+    records = {}
+    for number, row in sorted(rows.items()):
+        if number < 2:
+            continue
+        student_id = _norm(row.get('A'))
+        if not student_id:
+            if any(_norm(row.get(column)) for column in ('B', 'C', 'G', 'H')):
+                raise ValueError(f'גיליון dbase, שורה {number}: חסרה תעודת זהות בעמודה A. לא ניתן לעדכן רשומה זו.')
+            continue
+        if student_id in records:
+            raise ValueError(f'גיליון dbase: תעודת זהות כפולה בשורות {records[student_id][0]} ו־{number}.')
+        records[student_id] = (number, row)
+    return records
+
+
 def import_database(base_data, input_data, mode, base_filename):
     if mode not in ('new', 'update'):
         raise ValueError('יש לבחור טעינת קובץ חדש או עדכון קובץ קיים.')
@@ -251,13 +268,17 @@ def import_database(base_data, input_data, mode, base_filename):
         changes = len(students)
     else:
         existing_rows = _read_sheet(files[dbase_path], _strings(files))
-        existing = {_norm(row.get('A')): (number, row) for number, row in existing_rows.items()
-                    if number >= 2 and _norm(row.get('A'))}
+        existing = _dbase_records(existing_rows)
         incoming = {student['id']: student for student in students}
+        nonparticipants = {student_id for student_id, (_, row) in existing.items()
+                           if _norm(row.get('J')) != '1'}
+        matched_ids = set(existing) & set(incoming)
+        matched_nonparticipants = len(matched_ids & nonparticipants)
+        updated_nonparticipants = 0
         labels = {'B': 'שם תלמיד', 'C': 'כיתה', 'G': 'מורה', 'H': 'יחידות'}
         keys = {'B': 'name', 'C': 'class', 'G': 'teacher', 'H': 'unit'}
         now = datetime.now().strftime('%d/%m/%Y %H:%M')
-        for student_id in sorted(set(existing) & set(incoming)):
+        for student_id in sorted(matched_ids):
             row_number, old = existing[student_id]
             student = incoming[student_id]
             details = []
@@ -269,6 +290,8 @@ def import_database(base_data, input_data, mode, base_filename):
             if details:
                 log_rows.append([now, 'עדכון', student_id, student['name'], '; '.join(details)])
                 changes += 1
+                if student_id in nonparticipants:
+                    updated_nonparticipants += 1
 
         missing_ids = sorted(set(existing) - set(incoming))
         new_ids = sorted(set(incoming) - set(existing))
@@ -301,5 +324,10 @@ def import_database(base_data, input_data, mode, base_filename):
         _add_or_replace_sheet(files, 'log', log_rows)
     files[dbase_path] = xml.encode('utf-8')
     value = _write(infos, files)
-    return value, {'mode': mode, 'students': len(students), 'sheets': sheets,
-                   'changes': changes, 'logEntries': max(0, len(log_rows) - 1) if mode == 'update' else 0}
+    meta = {'mode': mode, 'students': len(students), 'sheets': sheets,
+            'changes': changes, 'logEntries': max(0, len(log_rows) - 1) if mode == 'update' else 0}
+    if mode == 'update':
+        meta.update(dbaseRecords=len(existing), dbaseNonParticipants=len(nonparticipants),
+                    matchedNonParticipants=matched_nonparticipants,
+                    updatedNonParticipants=updated_nonparticipants)
+    return value, meta

@@ -101,6 +101,8 @@ jobs:
           assert students[0]['name'] == 'כהן דנה'
           assert students[0]['class'] == 'י1'
           print('A1/B1 teacher import OK')
+      - name: Validate full dbase update including nonparticipants
+        run: python tests/database_update.py
       - name: Validate teacher reports are split by study unit
         shell: python
         run: |
@@ -170,7 +172,7 @@ jobs:
       - name: Upload UI verification screenshots
         uses: actions/upload-artifact@v4
         with:
-          name: About_v19_screenshots
+          name: About_v20_screenshots
           path: ui-checks/*.png
           if-no-files-found: error
       - name: Build application
@@ -188,6 +190,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ExamRoomApp_Setup_v19
-          path: installer_output/ExamRoomApp_Setup_v19.exe
+          name: ExamRoomApp_Setup_v20
+          path: installer_output/ExamRoomApp_Setup_v20.exe
           if-no-files-found: error
