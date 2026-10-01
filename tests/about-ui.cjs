@@ -3,7 +3,7 @@ const fs=require('fs'),http=require('http'),assert=require('assert'),path=requir
 (async()=>{
 const root=path.join(__dirname,'../web');
 const screenshots=path.join(__dirname,'../ui-checks');fs.mkdirSync(screenshots,{recursive:true});
-const server=http.createServer((req,res)=>{if(req.url==='/heartbeat'){res.setHeader('Content-Type','application/json');return res.end('{"ok":true}')}const name=req.url==='/'?'index.html':req.url.slice(1);res.setHeader('Content-Type',name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(fs.readFileSync(root+'/'+name));});
+const server=http.createServer((req,res)=>{if(req.url==='/heartbeat'){res.setHeader('Content-Type','application/json');return res.end('{"ok":true}')}const name=req.url==='/'?'index.html':req.url.slice(1);res.setHeader('Content-Type',name.endsWith('.js')?'text/javascript':name.endsWith('.css')?'text/css':'text/html');const file=path.join(root,name);if(!fs.existsSync(file)){res.statusCode=404;return res.end()}res.end(fs.readFileSync(file));});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({headless:true,channel:'chrome'});
 try{
