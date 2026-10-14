@@ -5,7 +5,7 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from database_import import _files, _read_sheet, _strings, import_database
+from database_import import _files, _read_sheet, _strings, import_database, parse_teacher_workbook
 
 MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
@@ -73,9 +73,19 @@ _, files = _files(created)
 rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
 assert [rows[i]['A'] for i in (2, 3)] == ['101', '102']
 assert rows[2]['G'] == 'מורה בדיקה' and rows[2]['H'] == '4' and rows[2]['J'] == '1'
+assert rows[2]['C'] == 'י1'
 assert rows[2]['D'] == '25' and rows[2]['E'] == rows[2]['F'] == 'כן'
 assert rows[2]['L'] == rows[2]['M'] == '1'
 assert meta['logEntries'] == 2 and meta['students'] == 2
+
+# A grade-7 teacher name gets a suffix only when that teacher also teaches a 3-unit class.
+headers = row(3, {'CT': 'מתמטיקה 3 יח י7 מורה א [1]', 'CU': 'מתמטיקה 4 יח יב3 מורה א [2]'})
+marked = row(4, {'B': '201', 'C': 'תלמיד', 'E': 'י', 'F': '7', 'CT': 'X'})
+parsed, _ = parse_teacher_workbook(workbook([('matrix', headers + marked)]))
+assert parsed[0]['teacher'] == 'מורה א' and parsed[0]['class'] == 'י7'
+headers = row(3, {'CT': 'מתמטיקה 3 יח י7 מורה א [1]', 'CU': 'מתמטיקה 3 יח יב3 מורה א [2]'})
+parsed, _ = parse_teacher_workbook(workbook([('matrix', headers + marked)]))
+assert parsed[0]['teacher'] == 'מורה אי7'
 
 # Update every record including blank/zero J; preserve J and report unmatched rows.
 base = classlist(

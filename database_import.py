@@ -131,7 +131,7 @@ def parse_teacher_workbook(data):
             info['teacher']: info['grade7']
             for info in math_columns.values()
             if info['teacher'] and info['grade7'] and any(
-                other['teacher'] == info['teacher'] and not other['grade7']
+                other['teacher'] == info['teacher'] and other['unit'] == '3' and not other['grade7']
                 for other in math_columns.values())
         }
         for row_number in sorted(n for n in rows if n >= 4):
@@ -141,7 +141,7 @@ def parse_teacher_workbook(data):
                 continue
             name = ' '.join(value for value in (_norm(row.get('C')), _norm(row.get('D')))
                              if value) if legacy else _norm(row.get('C'))
-            class_name = (_norm(row.get('E')) + _norm(row.get('F'))) if legacy else (_norm(row.get('F')) + _norm(row.get('E')))
+            class_name = _norm(row.get('E')) + _norm(row.get('F'))
             if not name or not class_name:
                 raise ValueError(f'גיליון „{sheet_name}”, שורה {row_number}: חסרים שם תלמיד או כיתה.')
             if student_id in seen:
