@@ -139,8 +139,9 @@ def parse_teacher_workbook(data):
             student_id = _norm(row.get('B'))
             if not student_id:
                 continue
-            name = _norm(row.get('C'))
-            class_name = _norm(row.get('F')) + _norm(row.get('E'))
+            name = ' '.join(value for value in (_norm(row.get('C')), _norm(row.get('D')))
+                             if value) if legacy else _norm(row.get('C'))
+            class_name = (_norm(row.get('E')) + _norm(row.get('F'))) if legacy else (_norm(row.get('F')) + _norm(row.get('E')))
             if not name or not class_name:
                 raise ValueError(f'גיליון „{sheet_name}”, שורה {row_number}: חסרים שם תלמיד או כיתה.')
             if student_id in seen:
