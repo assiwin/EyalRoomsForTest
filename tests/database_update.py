@@ -1,4 +1,4 @@
-"""Regression: database updates must consider all dbase rows, independent of J."""
+"""Synthetic regression for the student matrix, accommodation import, and all-row updates."""
 import io
 import sys
 import zipfile
@@ -44,56 +44,80 @@ def workbook(sheets):
     return buffer.getvalue()
 
 
-header = row(1, {'A': 'תעודת זהות', 'B': 'שם תלמיד', 'C': 'כיתה', 'G': 'מורה', 'H': 'יחידות', 'J': 'משתתף'})
-base = workbook([
-    ('dbase', header
-     + row(2, {'A': '101', 'B': 'ישן א', 'C': 'י1', 'G': 'מורה ישן', 'H': '4', 'J': '1'})
-     + row(3, {'A': '102', 'B': 'ישן ב', 'C': 'י1', 'G': 'מורה ישן', 'H': '4'})
-     + row(4, {'A': '103', 'B': 'ישן ג', 'C': 'י1', 'G': 'מורה ישן', 'H': '4', 'J': '0', 'L': '1'})
-     + row(5, {'A': '104', 'B': 'ישן ד', 'C': 'י1', 'G': 'מורה ישן', 'H': '4'})),
-    ('ניהול', row(1, {'A': 'ניהול'})),
-])
-teacher = workbook([
-    ('מורה', row(1, {'A': '4', 'B': 'מורה חדשה'})
-     + row(4, {'B': '101', 'C': 'כהן', 'D': 'א', 'E': 'י', 'F': '1'})
-     + row(5, {'B': '102', 'C': 'כהן', 'D': 'ב', 'E': 'י', 'F': '1'})
-     + row(6, {'B': '103', 'C': 'כהן', 'D': 'ג', 'E': 'י', 'F': '1'})),
-])
+def classlist(rows):
+    header = row(1, {'A': 'תעודת זהות', 'B': 'שם תלמיד', 'C': 'כיתה', 'D': 'תוספת זמן',
+                     'E': 'הגדלה', 'F': 'הקראה', 'G': 'מורה', 'H': 'יחידות', 'J': 'משתתף'})
+    return workbook([('dbase', header + rows), ('ניהול', row(1, {'A': 'ניהול'}))])
 
-output, meta = import_database(base, teacher, 'update', 'classlist.xlsm')
-_, files = _files(output)
+
+def student_matrix(records):
+    header = row(3, {'CT': 'מתמטיקה 4 יח יב1-יב10 מורה בדיקה [42]'})
+    content = ''.join(row(i + 4, {'B': sid, 'C': name, 'E': 'י', 'F': '1', 'CT': mark})
+                      for i, (sid, name, mark) in enumerate(records))
+    return workbook([('נתוני תלמידים', header + content)])
+
+
+def accommodations(records):
+    header = row(3, {'B': 'תעודת זהות', 'F': 'תוספת זמן 25%', 'G': 'הגדלת שאלון בחינה',
+                     'H': 'מתמטיקה והקראה', 'I': 'חדר מצומצם', 'J': 'חדר נפרד'})
+    content = ''.join(row(i + 4, {'B': sid, **values}) for i, (sid, values) in enumerate(records))
+    return workbook([('התאמות', header + content)])
+
+
+# Initial import keeps students without a math X and reports them in LOG.
+base_blank = classlist('')
+student_file = student_matrix([('101', 'כהן א', 'X'), ('102', 'לוי ב', '')])
+accommodation_file = accommodations([('101', {'F': 'X', 'G': 'X', 'H': 'X', 'I': 'X', 'J': 'X'})])
+created, meta = import_database(base_blank, student_file, accommodation_file, 'new', 'classlist.xlsx')
+_, files = _files(created)
+rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
+assert [rows[i]['A'] for i in (2, 3)] == ['101', '102']
+assert rows[2]['G'] == 'מורה בדיקה' and rows[2]['H'] == '4' and rows[2]['J'] == '1'
+assert rows[2]['D'] == '25' and rows[2]['E'] == rows[2]['F'] == 'כן'
+assert rows[2]['L'] == rows[2]['M'] == '1'
+assert meta['logEntries'] == 2 and meta['students'] == 2
+
+# Update every record including blank/zero J; preserve J and report unmatched rows.
+base = classlist(
+    row(2, {'A': '101', 'B': 'שם ישן', 'C': 'י1', 'G': 'מורה ישן', 'H': '3', 'J': '1'})
+    + row(3, {'A': '102', 'B': 'כהן ב', 'C': 'י1', 'G': 'מורה ישן', 'H': '3'})
+    + row(4, {'A': '103', 'B': 'כהן ג', 'C': 'י1', 'G': 'מורה ישן', 'H': '3', 'J': '0', 'L': '1'})
+    + row(5, {'A': '104', 'B': 'ישן ד', 'C': 'י1', 'G': 'מורה ישן', 'H': '3'}))
+updated, update_meta = import_database(
+    base, student_matrix([('101', 'כהן א', 'X'), ('102', 'כהן ב', 'X'), ('103', 'כהן ג', 'X'), ('105', 'חדש ה', 'X')]),
+    accommodations([('103', {'F': 'X'})]), 'update', 'classlist.xlsx')
+_, files = _files(updated)
 rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
 assert [rows[i]['A'] for i in range(2, 6)] == ['101', '102', '103', '104']
-assert [rows[i]['J'] for i in (2, 4)] == ['1', '0']
-assert rows[3].get('J', '') == '' and rows[5].get('J', '') == ''
-assert rows[4]['L'] == '1'
-assert all(rows[i]['G'] == 'מורה חדשה' for i in (2, 3, 4))
-assert rows[3]['B'] == 'כהן ב' and rows[4]['B'] == 'כהן ג'
-assert rows[5]['B'] == 'ישן ד'
-assert meta['dbaseRecords'] == 4 and meta['dbaseNonParticipants'] == 3
-assert meta['matchedNonParticipants'] == 2 and meta['updatedNonParticipants'] == 2
-assert meta['unmatchedRecords'] == 1 and meta['unmatchedNonParticipants'] == 1
-assert meta['changes'] == 3 and meta['logEntries'] == 4
+assert rows[2]['G'] == rows[3]['G'] == rows[4]['G'] == 'מורה בדיקה'
+assert [rows[i].get('J', '') for i in (2, 3, 4, 5)] == ['1', '', '0', '']
+assert rows[5]['B'] == 'ישן ד' and rows[4]['L'] == '1'
+assert update_meta['dbaseRecords'] == 4 and update_meta['dbaseNonParticipants'] == 3
+assert update_meta['matchedNonParticipants'] == 2 and update_meta['updatedNonParticipants'] == 2
+assert update_meta['unmatchedRecords'] == 1 and update_meta['unmatchedNonParticipants'] == 1
+assert 'xl/worksheets/sheet3.xml' in files  # a fresh LOG sheet was added
 
-# A populated row without an ID must be reported instead of silently skipped.
-bad = workbook([('dbase', header + row(2, {'B': 'תלמיד בלי מזהה', 'J': '0'})),
-                ('ניהול', row(1, {'A': 'ניהול'}))])
+# An accommodations-only update works even when the source contains no checked accommodations.
+empty_accommodation_file = accommodations([('102', {})])
+only_accommodations, only_meta = import_database(base, b'', empty_accommodation_file, 'update', 'classlist.xlsx')
+assert only_meta['studentFileLoaded'] is False and only_meta['accommodationFileLoaded'] is True
+assert only_meta['accommodationStudents'] == 0
+
+# Bad dbase rows must still be rejected instead of silently skipped or collapsed.
+bad = classlist(row(2, {'B': 'תלמיד בלי מזהה', 'J': '0'}))
 try:
-    import_database(bad, teacher, 'update', 'classlist.xlsm')
+    import_database(bad, student_matrix([('101', 'כהן א', 'X')]), b'', 'update', 'classlist.xlsx')
 except ValueError as error:
     assert 'שורה 2' in str(error) and 'תעודת זהות' in str(error)
 else:
     raise AssertionError('A dbase student without an ID was silently omitted')
 
-duplicate = workbook([('dbase', header
-                       + row(2, {'A': '101', 'B': 'תלמיד ראשון'})
-                       + row(3, {'A': '101', 'B': 'תלמיד נוסף', 'J': '0'})),
-                      ('ניהול', row(1, {'A': 'ניהול'}))])
+duplicate = classlist(row(2, {'A': '101', 'B': 'תלמיד ראשון'}) + row(3, {'A': '101', 'B': 'תלמיד נוסף', 'J': '0'}))
 try:
-    import_database(duplicate, teacher, 'update', 'classlist.xlsm')
+    import_database(duplicate, student_matrix([('101', 'כהן א', 'X')]), b'', 'update', 'classlist.xlsx')
 except ValueError as error:
     assert 'כפולה' in str(error) and '2' in str(error) and '3' in str(error)
 else:
     raise AssertionError('Duplicate dbase IDs were silently collapsed')
 
-print('Database update reads active and inactive dbase records, preserves J, and reports missing IDs.')
+print('Synthetic import/update checks passed: all dbase rows, J preservation, accommodations, and LOG entries.')

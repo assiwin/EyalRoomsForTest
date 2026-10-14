@@ -54,22 +54,23 @@ async function api(path,body,raw=false){
 }
 
 function fileToBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(Error('קריאת הקובץ נכשלה.'));reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.readAsDataURL(file)})}
-function databaseControls(){const input=$('databaseInputFile').files[0];$('processDatabase').disabled=databaseBusy||!databaseBaseSelected||!input;$('chooseDatabaseBase').disabled=databaseBusy}
+function databaseControls(){const input=$('studentDataFile').files[0]||$('accommodationDataFile').files[0];$('processDatabase').disabled=databaseBusy||!databaseBaseSelected||!input;$('chooseDatabaseBase').disabled=databaseBusy}
 function showAssignment(){$('databaseScreen').hidden=true;$('seatingScreen').hidden=true;$('mainScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'});controls()}
 document.querySelectorAll('input[name=databaseMode]').forEach(input=>input.onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()});
 $('chooseDatabaseBase').onclick=async()=>{
-  try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;const info=await api('/select-database-base',{});if(info.cancelled)return;databaseBaseSelected=true;$('databaseBaseSelection').textContent=info.path||info.filename;$('databaseSuccess').hidden=true;databaseReady=false;$('databaseStatus').textContent='קובץ classlist נבחר. יש לבחור גם את קובץ נתוני המורים.'}
+  try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;const info=await api('/select-database-base',{});if(info.cancelled)return;databaseBaseSelected=true;$('databaseBaseSelection').textContent=info.path||info.filename;$('databaseSuccess').hidden=true;databaseReady=false;$('databaseStatus').textContent='קובץ classlist נבחר. יש לבחור לפחות אחד: נתוני תלמידים או התאמות.'}
   catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message}
   finally{databaseBusy=false;databaseControls()}
 };
-$('databaseInputFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()};
+$('studentDataFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()};
+$('accommodationDataFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()};
 $('processDatabase').onclick=async()=>{
-  const input=$('databaseInputFile').files[0],mode=document.querySelector('input[name=databaseMode]:checked')?.value;
-  if(!databaseBaseSelected||!input)return;if(!confirm('הנך מעדכן את בסיס הנתונים, האם להמשיך?'))return;
-  try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;$('databaseSuccess').hidden=true;$('databaseStatus').textContent='קורא את גיליונות המורים ומעדכן את קובץ classlist…';
-    const info=await api('/database-import',{mode,inputName:input.name,inputData:await fileToBase64(input)});
+  const studentFile=$('studentDataFile').files[0],accommodationFile=$('accommodationDataFile').files[0],mode=document.querySelector('input[name=databaseMode]:checked')?.value;
+  if(!databaseBaseSelected||(!studentFile&&!accommodationFile))return;if(!confirm('הנך מעדכן את בסיס הנתונים, האם להמשיך?'))return;
+  try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;$('databaseSuccess').hidden=true;$('databaseStatus').textContent='קורא את הקבצים ומעדכן את קובץ classlist…';
+    const info=await api('/database-import',{mode,studentName:studentFile?.name||'',studentData:studentFile?await fileToBase64(studentFile):'',accommodationName:accommodationFile?.name||'',accommodationData:accommodationFile?await fileToBase64(accommodationFile):''});
     databaseReady=true;
-    const summary=mode==='new'?`${info.students} תלמידים מ־${info.sheets} גיליונות נכתבו לגיליון dbase.`:`נבדקו כל ${info.dbaseRecords} הרשומות בגיליון dbase, כולל ${info.dbaseNonParticipants} ללא סימון 1 בעמודת „משתתף”. ${info.matchedNonParticipants} מהן נמצאו גם בקובץ המורים, ו־${info.updatedNonParticipants} עודכנו. ${info.unmatchedRecords} רשומות לא נמצאו בקובץ המורים, מתוכן ${info.unmatchedNonParticipants} ללא סימון 1; הן נשמרו ללא שינוי ונרשמו לבדיקה בגיליון log. בקובץ המורים נקראו ${info.students} תלמידים מ־${info.sheets} גיליונות. בוצעו ${info.changes} עדכוני תלמידים ונרשמו ${info.logEntries} רשומות בגיליון log.`;
+    const summary=`${info.studentFileLoaded?`${info.students} תלמידים נקראו מקובץ נתוני התלמידים.`:'קובץ נתוני תלמידים לא נטען.'} ${info.accommodationFileLoaded?`${info.accommodationStudents} תלמידים נקראו מקובץ ההתאמות.`:'קובץ התאמות לא נטען; ההתאמות לא עודכנו.'} ${mode==='update'?`נסרקו ${info.dbaseRecords} רשומות dbase, כולל ${info.dbaseNonParticipants} שאינם מסומנים כמשתתפים.`:''} נרשמו ${info.logEntries} הערות בגיליון log.`;
     $('databaseDetails').textContent=summary+(info.savedPath?` הקובץ נשמר גם ב־${info.savedPath}.`:'');
     $('databaseSuccess').hidden=false;$('databaseStatus').textContent='העדכון הסתיים בהצלחה. הקובץ נשמר בתיקיית הפלט; ניתן לפתוח אותה או להמשיך לשיבוץ.';
   }catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message;$('databaseStatus').textContent='עדכון בסיס הנתונים נכשל.'}

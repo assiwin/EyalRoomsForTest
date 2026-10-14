@@ -1,3 +1,12 @@
+22.0.0
+
+New in this version:
+- Imports student data from the school matrix and maps math group, teacher, and study units into dbase.
+- Imports accommodations by student ID, with independent or combined student/accommodation updates.
+- Records missing math assignments, unmatched new students, and accommodation changes in LOG for review.
+- Preserves dbase participant flags during updates and processes every dbase record.
+
+Previous version:
 21.0.0
 
 New in this version:

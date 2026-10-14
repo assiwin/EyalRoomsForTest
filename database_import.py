@@ -71,42 +71,145 @@ def _read_sheet(xml, shared):
     return rows
 
 
+def _column_number(name):
+    value = 0
+    for char in name:
+        value = value * 26 + ord(char) - 64
+    return value
+
+
+def _teacher_from_header(header):
+    text = _norm(header)
+    if 'מתמטיקה' not in text:
+        return None
+    details = text.replace('מתמטיקה', '', 1).strip()
+    unit = ''
+    if re.search(r'מב["״\']?ר', details):
+        unit = '3א'
+        details = re.sub(r'מב["״\']?ר', '', details).strip()
+    else:
+        match = re.search(r'(?<!\d)([345])\s*יח(?:ידות)?\b', details)
+        if match:
+            unit = match.group(1)
+            details = details[:match.start()] + ' ' + details[match.end():]
+    class_match = re.search(r'(?<!\w)(י|יא|יב)\s*(\d+)(?:\s*[-–]\s*(?:י|יא|יב)?\s*\d+)?', details)
+    grade7 = ''
+    if class_match:
+        grade, number = class_match.group(1), class_match.group(2)
+        if number == '7':
+            grade7 = grade + '7'
+            if not unit:
+                unit = '3'
+        details = details[:class_match.start()] + ' ' + details[class_match.end():]
+    details = re.sub(r'\[\s*\d+\s*\]', '', details)
+    teacher = re.sub(r'\s+', ' ', details).strip(' -–')
+    if not unit:
+        return {'teacher': teacher, 'unit': '', 'grade7': grade7}
+    return {'teacher': teacher, 'unit': unit, 'grade7': grade7}
+
+
 def parse_teacher_workbook(data):
+    """Read the school's student matrix: row 3 headers, student data from row 4."""
     _, files = _files(data)
     shared = _strings(files)
+    sheets = _sheet_paths(files)
+    if not sheets:
+        raise ValueError('לא נמצאו גיליונות בקובץ נתוני התלמידים.')
     students = []
     seen = {}
-    sheet_count = 0
-    for sheet_name, path in _sheet_paths(files):
+    for sheet_name, path in sheets:
         if path not in files:
             continue
         rows = _read_sheet(files[path], shared)
-        unit = _norm(rows.get(1, {}).get('A'))
-        teacher = _norm(rows.get(1, {}).get('B'))
-        if unit not in ('3', '3א', '4', '5') or not teacher:
-            raise ValueError(f'גיליון „{sheet_name}”: תא A1 חייב להכיל 3, 3א, 4 או 5, ותא B1 חייב להכיל את שם המורה.')
-        sheet_count += 1
-        for row_number in sorted(number for number in rows if number >= 4):
+        headers = rows.get(3, {})
+        math_columns = {column: _teacher_from_header(header) for column, header in headers.items()}
+        math_columns = {column: info for column, info in math_columns.items() if info is not None}
+        legacy_unit = _norm(rows.get(1, {}).get('A'))
+        legacy_teacher = _norm(rows.get(1, {}).get('B'))
+        legacy = not math_columns and legacy_unit in ('3', '3א', '4', '5') and bool(legacy_teacher)
+        special_grade_teachers = {
+            info['teacher']: info['grade7']
+            for info in math_columns.values()
+            if info['teacher'] and info['grade7'] and any(
+                other['teacher'] == info['teacher'] and not other['grade7']
+                for other in math_columns.values())
+        }
+        for row_number in sorted(n for n in rows if n >= 4):
             row = rows[row_number]
             student_id = _norm(row.get('B'))
             if not student_id:
                 continue
-            surname, first = _norm(row.get('C')), _norm(row.get('D'))
-            class_name = _norm(row.get('E')) + _norm(row.get('F'))
-            name = ' '.join(value for value in (surname, first) if value)
+            name = _norm(row.get('C'))
+            class_name = _norm(row.get('F')) + _norm(row.get('E'))
             if not name or not class_name:
                 raise ValueError(f'גיליון „{sheet_name}”, שורה {row_number}: חסרים שם תלמיד או כיתה.')
             if student_id in seen:
-                previous = seen[student_id]
-                raise ValueError(f'תעודת הזהות {student_id} מופיעה פעמיים: {previous} וגם {sheet_name} שורה {row_number}.')
+                raise ValueError(f'תעודת זהות {student_id} מופיעה פעמיים בקובץ נתוני התלמידים.')
+            marked = ([{'teacher': legacy_teacher, 'unit': legacy_unit, 'grade7': ''}] if legacy else
+                      [info.copy() for column, info in math_columns.items()
+                       if _norm(row.get(column)).upper() == 'X'])
+            # If the same teacher teaches both a special seventh-grade class and
+            # another math class, distinguish the teacher in the seventh-grade group.
+            for item in marked:
+                if item['grade7'] and item['teacher'] in special_grade_teachers:
+                    item['teacher'] += item['grade7']
+            assignments = marked or [{'teacher': '', 'unit': '', 'grade7': ''}]
+            for assignment in assignments:
+                students.append({'id': student_id, 'name': name, 'class': class_name,
+                                 'teacher': assignment['teacher'], 'unit': assignment['unit'],
+                                 'source': f'{sheet_name} שורה {row_number}'})
             seen[student_id] = f'{sheet_name} שורה {row_number}'
-            students.append({'id': student_id, 'name': name, 'class': class_name,
-                             'teacher': teacher, 'unit': unit, 'source': seen[student_id]})
-    if not sheet_count:
-        raise ValueError('לא נמצאו גיליונות מורים בקובץ הקלט.')
     if not students:
-        raise ValueError('לא נמצאו תלמידים בקובץ הקלט החל משורה 4.')
-    return students, sheet_count
+        raise ValueError('לא נמצאו תלמידים בקובץ נתוני התלמידים החל משורה 4.')
+    return students, len(sheets)
+
+
+def parse_accommodations_workbook(data):
+    """Return student accommodations keyed by ID from the accommodation matrix."""
+    _, files = _files(data)
+    shared = _strings(files)
+    result = {}
+    has_students = False
+    for sheet_name, path in _sheet_paths(files):
+        if path not in files:
+            continue
+        rows = _read_sheet(files[path], shared)
+        headers = rows.get(3, {})
+        columns = {}
+        for col, label in headers.items():
+            if _column_number(col) < 6:
+                continue
+            label = _norm(label)
+            if 'תוספת זמן' in label:
+                percent_match = re.search(r'(?<!\d)(50|33|25)\s*%', label)
+                percent = percent_match.group(1) if percent_match else ''
+                if percent:
+                    columns[col] = ('D', percent)
+            if 'הגדלת שאלון בחינה' in label:
+                columns[col] = ('E', 'כן')
+            if 'מתמטיקה והקראה' in label:
+                columns[col] = ('F', 'כן')
+            if 'חדר מצומצם' in label:
+                columns[col] = ('L', '1')
+            if 'חדר נפרד' in label:
+                columns[col] = ('M', '1')
+        for row_number in sorted(n for n in rows if n >= 4):
+            row = rows[row_number]
+            student_id = _norm(row.get('B'))
+            if not student_id:
+                continue
+            has_students = True
+            values = result.setdefault(student_id, {})
+            for col, (target, value) in columns.items():
+                if _norm(row.get(col)):
+                    # Prefer the largest extra-time value if multiple columns are marked.
+                    if target == 'D' and target in values:
+                        values[target] = str(max(int(values[target]), int(value)))
+                    else:
+                        values[target] = value
+    if not has_students:
+        raise ValueError('לא נמצאו תלמידים בקובץ ההתאמות החל משורה 4.')
+    return {student_id: values for student_id, values in result.items() if values}, len(_sheet_paths(files))
 
 
 def _classlist(files, filename):
@@ -186,8 +289,11 @@ def _set_cell(xml, ref, value):
 
 
 def _add_or_replace_sheet(files, name, rows):
-    paths = dict(_sheet_paths(files))
+    sheet_pairs = _sheet_paths(files)
+    paths = dict(sheet_pairs)
     path = paths.get(name)
+    if path is None:
+        path = next((candidate for sheet_name, candidate in sheet_pairs if sheet_name.casefold() == name.casefold()), None)
     if path is None:
         numbers = [int(match.group(1)) for filename in files
                    if (match := re.fullmatch(r'xl/worksheets/sheet(\d+)\.xml', filename))]
@@ -254,88 +360,124 @@ def _dbase_records(rows):
     return records
 
 
-def import_database(base_data, input_data, mode, base_filename):
+def import_database(base_data, student_data, accommodation_data, mode, base_filename):
     if mode not in ('new', 'update'):
         raise ValueError('יש לבחור טעינת קובץ חדש או עדכון קובץ קיים.')
     infos, files = _files(base_data)
     dbase_path = _classlist(files, base_filename)
-    students, sheets = parse_teacher_workbook(input_data)
+    students, sheets = parse_teacher_workbook(student_data) if student_data else ([], 0)
+    accommodations, accommodation_sheets = parse_accommodations_workbook(accommodation_data) if accommodation_data else ({}, 0)
+    if not student_data and not accommodation_data:
+        raise ValueError('יש לבחור לפחות קובץ נתוני תלמידים או קובץ התאמות.')
+    shared = _strings(files)
     xml = files[dbase_path].decode('utf-8')
     log_rows = [['תאריך', 'פעולה', 'תעודת זהות', 'שם תלמיד', 'פירוט']]
     changes = 0
+    now = datetime.now().strftime('%d/%m/%Y %H:%M')
     if mode == 'new':
-        xml = _replace_dbase_new(xml, students)
-        changes = len(students)
+        if students:
+            xml = _replace_dbase_new(xml, students)
+            changes = len(students)
+        existing_rows = _read_sheet(xml.encode('utf-8'), shared)
+        existing = _dbase_records(existing_rows)
+        for student in students:
+            if not student['teacher'] or not student['unit']:
+                log_rows.append([now, 'חסר שיבוץ מתמטיקה', student['id'], student['name'],
+                                 'לא נמצא סימון X בעמודת מתמטיקה; יש לבדוק שיוך, מורה ויחידות.'])
     else:
         existing_rows = _read_sheet(files[dbase_path], _strings(files))
         existing = _dbase_records(existing_rows)
-        incoming = {student['id']: student for student in students}
-        nonparticipants = {student_id for student_id, (_, row) in existing.items()
-                           if _norm(row.get('J')) != '1'}
-        matched_nonparticipants = 0
-        updated_nonparticipants = 0
-        missing_ids = []
-        labels = {'B': 'שם תלמיד', 'C': 'כיתה', 'G': 'מורה', 'H': 'יחידות'}
-        keys = {'B': 'name', 'C': 'class', 'G': 'teacher', 'H': 'unit'}
-        now = datetime.now().strftime('%d/%m/%Y %H:%M')
-        # Walk every dbase student row, even when J is blank or zero. J controls
-        # exam seating elsewhere, but must never limit a database update.
-        for student_id, (row_number, old) in existing.items():
-            student = incoming.get(student_id)
-            if student is None:
-                missing_ids.append(student_id)
-                continue
-            if student_id in nonparticipants:
-                matched_nonparticipants += 1
-            details = []
-            for column in ('B', 'C', 'G', 'H'):
-                before, after = _norm(old.get(column)), student[keys[column]]
-                if before != after:
-                    xml = _set_cell(xml, f'{column}{row_number}', after)
-                    details.append(f'{labels[column]}: „{before}” ← „{after}”')
-            if details:
-                log_rows.append([now, 'עדכון', student_id, student['name'], '; '.join(details)])
-                changes += 1
+        if students:
+            incoming = {}
+            nonparticipants = {student_id for student_id, (_, row) in existing.items() if _norm(row.get('J')) != '1'}
+            matched_nonparticipants = 0
+            updated_nonparticipants = 0
+            for student in students:
+                incoming.setdefault(student['id'], []).append(student)
+            found = set()
+            labels = {'B': 'שם תלמיד', 'C': 'כיתה', 'G': 'מורה', 'H': 'יחידות'}
+            keys = {'B': 'name', 'C': 'class', 'G': 'teacher', 'H': 'unit'}
+            for student_id, candidates in incoming.items():
+                if student_id not in existing:
+                    student = candidates[0]
+                    log_rows.append([now, 'לבדיקה - תלמיד חדש', student_id, student['name'],
+                                     f"כיתה {student['class']}, מורה {student['teacher'] or 'לא נמצאה מתמטיקה'}, {student['unit'] or 'יחידות לא ידועות'}"])
+                    continue
+                found.add(student_id)
                 if student_id in nonparticipants:
-                    updated_nonparticipants += 1
-
-        missing_ids.sort()
-        new_ids = sorted(set(incoming) - set(existing))
-        new_by_signature = {}
-        for student_id in new_ids:
-            student = incoming[student_id]
-            signature = tuple(_norm(student[key]) for key in ('name', 'class', 'teacher', 'unit'))
-            new_by_signature.setdefault(signature, []).append(student_id)
-        matched_new_ids = set()
-
-        for student_id in missing_ids:
-            _, old = existing[student_id]
-            detail = 'יש לבדוק אם התלמיד עזב ויש למחוק אותו ידנית.'
-            signature = tuple(_norm(old.get(column)) for column in ('B', 'C', 'G', 'H'))
-            candidates = [candidate for candidate in new_by_signature.get(signature, [])
-                          if candidate not in matched_new_ids]
-            if candidates:
-                matched_id = candidates[0]
-                matched_new_ids.add(matched_id)
-                detail += f' בקלט נמצא תלמיד עם אותם פרטים ותעודת זהות {matched_id}; יש לבדוק ידנית את תעודת הזהות.'
-            log_rows.append([now, 'לבדיקה - תלמיד לא נמצא בקלט', student_id,
-                             _norm(old.get('B')), detail])
-
-        for student_id in new_ids:
-            if student_id in matched_new_ids:
+                    matched_nonparticipants += 1
+                row_number, old = existing[student_id]
+                # A student may be marked in more than one math column; preserve each
+                # marked teacher/group as a separate row in the new-load path. Updates
+                # use the first marked assignment for the existing classlist row.
+                student = candidates[0]
+                if not student['teacher'] or not student['unit']:
+                    log_rows.append([now, 'חסר שיבוץ מתמטיקה', student_id, student['name'],
+                                     'לא נמצא סימון X בעמודת מתמטיקה; פרטי המורה והיחידות הקיימים נשמרו לבדיקה.'])
+                    continue
+                details = []
+                for column in ('B', 'C', 'G', 'H'):
+                    after = student[keys[column]]
+                    before = _norm(old.get(column))
+                    if before != after:
+                        xml = _set_cell(xml, f'{column}{row_number}', after)
+                        details.append(f'{labels[column]}: „{before}” ← „{after}”')
+                if details:
+                    log_rows.append([now, 'עדכון נתוני תלמיד', student_id, student['name'], '; '.join(details)])
+                    changes += 1
+                    if student_id in nonparticipants:
+                        updated_nonparticipants += 1
+            for student_id, (row_number, old) in existing.items():
+                if student_id not in found and student_id not in incoming:
+                    log_rows.append([now, 'לבדיקה - תלמיד לא נמצא בקלט', student_id,
+                                     _norm(old.get('B')), 'יש לבדוק אם התלמיד עזב; לא בוצעה מחיקה אוטומטית.'])
+        # Re-read the updated XML, then apply accommodation data by ID.
+        current_rows = _read_sheet(xml.encode('utf-8'), shared)
+        existing = _dbase_records(current_rows)
+    # Apply accommodations in both new and update modes. Missing IDs are reported,
+    # and no dbase rows are created implicitly.
+    if accommodations:
+        rows_now = _read_sheet(xml.encode('utf-8'), shared) if mode == 'new' else _read_sheet(xml.encode('utf-8'), shared)
+        records = _dbase_records(rows_now)
+        matched = set()
+        for student_id, values in accommodations.items():
+            record = records.get(student_id)
+            if not record:
+                log_rows.append([now, 'לבדיקה - התאמות ללא תלמיד ב־dbase', student_id, '',
+                                 'לא נמצאה תעודת זהות זו בגיליון dbase; לא נוצרה רשומה.'])
                 continue
-            student = incoming[student_id]
-            detail = f"כיתה {student['class']}, מורה {student['teacher']}, {student['unit']} יחידות"
-            log_rows.append([now, 'לבדיקה - תלמיד חדש', student_id, student['name'], detail])
-        _add_or_replace_sheet(files, 'log', log_rows)
+            matched.add(student_id)
+            row_number, old = record
+            details = []
+            for column, value in values.items():
+                before = _norm(old.get(column))
+                if before != value:
+                    xml = _set_cell(xml, f'{column}{row_number}', value)
+                    details.append(f'{column}: „{before}” ← „{value}”')
+            if details:
+                log_rows.append([now, 'עדכון התאמות', student_id, _norm(old.get('B')), '; '.join(details)])
+                changes += 1
+        if mode == 'update':
+            unmatched = len(set(accommodations) - matched)
+            # Keep a count for the UI; detailed rows are already in LOG.
+        else:
+            unmatched = len(set(accommodations) - matched)
+    else:
+        unmatched = 0
+    if mode == 'new' or mode == 'update':
+        _add_or_replace_sheet(files, 'LOG', log_rows)
     files[dbase_path] = xml.encode('utf-8')
     value = _write(infos, files)
     meta = {'mode': mode, 'students': len(students), 'sheets': sheets,
-            'changes': changes, 'logEntries': max(0, len(log_rows) - 1) if mode == 'update' else 0}
+            'accommodationStudents': len(accommodations), 'accommodationSheets': accommodation_sheets,
+            'changes': changes, 'logEntries': max(0, len(log_rows) - 1),
+            'unmatchedAccommodations': unmatched,
+            'studentFileLoaded': bool(student_data), 'accommodationFileLoaded': bool(accommodation_data)}
     if mode == 'update':
-        meta.update(dbaseRecords=len(existing), dbaseNonParticipants=len(nonparticipants),
-                    matchedNonParticipants=matched_nonparticipants,
-                    updatedNonParticipants=updated_nonparticipants,
-                    unmatchedRecords=len(missing_ids),
-                    unmatchedNonParticipants=len(nonparticipants) - matched_nonparticipants)
+        meta.update(dbaseRecords=len(existing), dbaseNonParticipants=sum(1 for _, row in existing.values() if _norm(row.get('J')) != '1'))
+        if students:
+            meta.update(matchedNonParticipants=matched_nonparticipants,
+                        updatedNonParticipants=updated_nonparticipants,
+                        unmatchedRecords=len(set(existing) - set(incoming)),
+                        unmatchedNonParticipants=sum(1 for student_id in set(existing) - set(incoming) if student_id in nonparticipants))
     return value, meta

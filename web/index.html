@@ -25,16 +25,17 @@
     <section class="panel database-panel">
       <div class="step"><span>01</span><h2>טעינה ראשונית או עדכון של קובץ קיים</h2></div>
       <div class="database-mode" role="radiogroup" aria-label="סוג עדכון בסיס הנתונים">
-        <label><input type="radio" name="databaseMode" value="new" checked><b>טעינת קובץ חדש</b><span>מילוי מחדש של גיליון dbase בקובץ classlist.</span></label>
-        <label><input type="radio" name="databaseMode" value="update"><b>עדכון קובץ קיים</b><span>קריאת כל הרשומות בגיליון dbase, גם כש„משתתף” אינו 1; עדכון שינויים והפקת גיליון log.</span></label>
+        <label><input type="radio" name="databaseMode" value="new" checked><b>טעינת קובץ חדש</b><span>בניית גיליון dbase מקובץ נתוני תלמידים; ניתן לצרף גם קובץ התאמות.</span></label>
+        <label><input type="radio" name="databaseMode" value="update"><b>עדכון קובץ קיים</b><span>עדכון תלמידים והתאמות לפי תעודת זהות; כל רשומות dbase נסרקות, ללא תלות בשדה משתתף.</span></label>
       </div>
       <div class="database-files">
         <div class="file-card"><b>קובץ classlist</b><span>בחירה דרך Windows מאפשרת לשמור את כל קובצי הפלט באותה ספרייה.</span><button id="chooseDatabaseBase" type="button" class="secondary compact-button">בחירת קובץ classlist</button><p id="databaseBaseSelection" class="help">טרם נבחר קובץ.</p></div>
-        <label class="file-card"><b>קובץ נתוני המורים</b><span>בכל גיליון: A1 = מספר יחידות, B1 = שם המורה. נתוני התלמידים מתחילים בשורה 4.</span><input id="databaseInputFile" type="file" accept=".xlsx,.xlsm"></label>
+        <label class="file-card"><b>קובץ נתוני תלמידים</b><span>כל תלמיד בשורה; המערכת קוראת ת״ז, שם, כיתה ושיוך מתמטיקה מעמודות הקבוצה.</span><input id="studentDataFile" type="file" accept=".xlsx,.xlsm"></label>
+        <label class="file-card"><b>קובץ התאמות</b><span>נקרא לפי ת״ז ומעדכן תוספת זמן, הגדלה, הקראה וחדרים. אפשר לטעון כל קובץ בנפרד.</span><input id="accommodationDataFile" type="file" accept=".xlsx,.xlsm"></label>
       </div>
       <div id="databaseError" class="error" role="alert" hidden></div>
       <button id="processDatabase" class="primary" disabled>עדכן את בסיס הנתונים</button>
-      <p id="databaseStatus" class="note" role="status" aria-live="polite">יש לבחור שני קובצי Excel.</p>
+      <p id="databaseStatus" class="note" role="status" aria-live="polite">יש לבחור לפחות אחד משני הקבצים: נתוני תלמידים או התאמות.</p>
       <div id="databaseSuccess" class="success" hidden><b>קובץ בסיס הנתונים מוכן.</b><p id="databaseDetails"></p><div class="button-row"><button id="openDatabaseOutput" class="secondary">פתח תיקיית פלט</button><button id="continueWithDatabase" class="primary">המשך לשיבוץ עם הקובץ המעודכן</button></div></div>
       <hr>
       <button id="skipDatabase" class="secondary">כבר יש לי קובץ classlist מוכן — המשך לשיבוץ</button>
@@ -186,7 +187,7 @@
     <div class="about-heading"><h2 id="aboutTitle">אודות סדרן חדרים</h2><button id="closeAbout" class="about-close" type="button" aria-label="סגירת חלון אודות" autofocus>×</button></div>
     <p>אפליקציה לשיבוץ חדרים לנבחנים ולהכנת קובצי הבחינה.</p>
     <dl class="about-details">
-      <div><dt>גרסה</dt><dd><b dir="ltr">21.0.0</b></dd></div>
+      <div><dt>גרסה</dt><dd><b dir="ltr">22.0.0</b></dd></div>
       <div><dt>נוצר על ידי</dt><dd>אסי וינברגר ואייל שיף</dd></div>
       <div><dt>מערכת הפעלה</dt><dd>Windows 10 / 11, ‏64 ביט</dd></div>
     </dl>
