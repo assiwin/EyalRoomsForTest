@@ -57,9 +57,9 @@ def student_matrix(records):
     return workbook([('נתוני תלמידים', header + content)])
 
 
-def accommodations(records):
-    header = row(3, {'B': 'תעודת זהות', 'F': 'תוספת זמן 25%', 'G': 'הגדלת שאלון בחינה',
-                     'H': 'מתמטיקה והקראה', 'I': 'כיתה מצומצמת', 'J': 'חדר נפרד'})
+def accommodations(records, enlargement_header='הגדלת שאלון הבחינה', reading_header='הקראת שאלון במתמטיקה'):
+    header = row(3, {'B': 'תעודת זהות', 'F': 'תוספת זמן 25%', 'G': enlargement_header,
+                     'H': reading_header, 'I': 'כיתה מצומצמת', 'J': 'חדר נפרד'})
     content = ''.join(row(i + 4, {'B': sid, **values}) for i, (sid, values) in enumerate(records))
     return workbook([('התאמות', header + content)])
 
@@ -79,6 +79,17 @@ assert rows[2]['L'] == rows[2]['M'] == '1'
 assert meta['logEntries'] == 1 and meta['students'] == 2
 log = _read_sheet(files['xl/worksheets/sheet3.xml'], _strings(files))
 assert log[2]['C'] == '102'  # successful accommodations are not listed on initial load
+
+# Accommodation columns use the exact corrected header wording.
+old_header_output, _ = import_database(
+    base_blank, student_matrix([('111', 'בדיקה', 'X')]),
+    accommodations([('111', {'G': 'X', 'H': 'X'})], 'הגדלת שאלון בחינה', 'מתמטיקה והקראה'),
+    'new', 'classlist.xlsx')
+_, files = _files(old_header_output)
+old_header_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
+assert old_header_rows[2].get('E', '') == old_header_rows[2].get('F', '') == ''
+new_header_rows = rows
+assert new_header_rows[2]['E'] == new_header_rows[2]['F'] == 'כן'
 
 # Initial load sorts by teacher, study units, then student name.
 multi_headers = row(3, {'CT': 'מתמטיקה 5 יח יב1 מורה ב', 'CU': 'מתמטיקה 3 יח יב1 מורה א',

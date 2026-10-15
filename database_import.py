@@ -186,9 +186,9 @@ def parse_accommodations_workbook(data):
                 percent = percent_match.group(1) if percent_match else ''
                 if percent:
                     columns[col] = ('D', percent)
-            if 'הגדלת שאלון בחינה' in label:
+            if 'הגדלת שאלון הבחינה' in label:
                 columns[col] = ('E', 'כן')
-            if 'מתמטיקה והקראה' in label:
+            if 'הקראת שאלון במתמטיקה' in label:
                 columns[col] = ('F', 'כן')
             if 'כיתה מצומצמת' in label:
                 columns[col] = ('L', '1')

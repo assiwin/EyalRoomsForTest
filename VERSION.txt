@@ -1,3 +1,9 @@
+25.0.0
+
+New in this version:
+- Corrects accommodation header detection to “הגדלת שאלון הבחינה” and “הקראת שאלון במתמטיקה”.
+
+Previous version:
 24.0.0
 
 New in this version:
