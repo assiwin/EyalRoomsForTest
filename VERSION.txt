@@ -1,3 +1,10 @@
+26.0.0
+
+New in this version:
+- Reconciles accommodation data during updates in both directions.
+- Clears canceled accommodations from dbase and records each change in LOG.
+
+Previous version:
 25.0.0
 
 New in this version:

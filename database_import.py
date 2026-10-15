@@ -171,6 +171,7 @@ def parse_accommodations_workbook(data):
     shared = _strings(files)
     result = {}
     has_students = False
+    accommodation_fields = set()
     for sheet_name, path in _sheet_paths(files):
         if path not in files:
             continue
@@ -194,6 +195,7 @@ def parse_accommodations_workbook(data):
                 columns[col] = ('L', '1')
             if 'חדר נפרד' in label:
                 columns[col] = ('M', '1')
+        accommodation_fields.update(target for target, _ in columns.values())
         for row_number in sorted(n for n in rows if n >= 4):
             row = rows[row_number]
             student_id = _norm(row.get('B'))
@@ -210,7 +212,7 @@ def parse_accommodations_workbook(data):
                         values[target] = value
     if not has_students:
         raise ValueError('לא נמצאו תלמידים בקובץ ההתאמות החל משורה 4.')
-    return {student_id: values for student_id, values in result.items() if values}, len(_sheet_paths(files))
+    return result, len(_sheet_paths(files)), accommodation_fields
 
 
 def _classlist(files, filename):
@@ -367,7 +369,9 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
     infos, files = _files(base_data)
     dbase_path = _classlist(files, base_filename)
     students, sheets = parse_teacher_workbook(student_data) if student_data else ([], 0)
-    accommodations, accommodation_sheets = parse_accommodations_workbook(accommodation_data) if accommodation_data else ({}, 0)
+    accommodations, accommodation_sheets, accommodation_fields = (
+        parse_accommodations_workbook(accommodation_data) if accommodation_data else ({}, 0, set()))
+    active_accommodations = {student_id: values for student_id, values in accommodations.items() if values}
     if not student_data and not accommodation_data:
         raise ValueError('יש לבחור לפחות קובץ נתוני תלמידים או קובץ התאמות.')
     shared = _strings(files)
@@ -444,33 +448,37 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
     # Apply accommodations in both new and update modes. Missing IDs are reported,
     # and no dbase rows are created implicitly.
     if accommodations:
-        rows_now = _read_sheet(xml.encode('utf-8'), shared) if mode == 'new' else _read_sheet(xml.encode('utf-8'), shared)
+        rows_now = _read_sheet(xml.encode('utf-8'), shared)
         records = _dbase_records(rows_now)
         matched = set()
         for student_id, values in accommodations.items():
             record = records.get(student_id)
             if not record:
-                if mode != 'new' or student_id not in teacherless_ids:
+                if values and (mode != 'new' or student_id not in teacherless_ids):
                     log_rows.append([now, 'לבדיקה - התאמות ללא תלמיד ב־dbase', student_id, '',
                                      'לא נמצאה תעודת זהות זו בגיליון dbase; לא נוצרה רשומה.'])
                 continue
             matched.add(student_id)
             row_number, old = record
             details = []
-            for column, value in values.items():
+            target_columns = accommodation_fields if mode == 'update' else values.keys()
+            field_labels = {'D': 'תוספת זמן', 'E': 'הגדלת שאלון', 'F': 'הקראה במתמטיקה',
+                            'L': 'כיתה מצומצמת', 'M': 'חדר נפרד'}
+            for column in target_columns:
+                value = values.get(column, '')
                 before = _norm(old.get(column))
                 if before != value:
                     xml = _set_cell(xml, f'{column}{row_number}', value)
-                    details.append(f'{column}: „{before}” ← „{value}”')
+                    details.append(f'{field_labels.get(column, column)}: „{before or "ריק"}” ← „{value or "בוטל/הוסר"}”')
             if details and mode == 'update':
                 log_rows.append([now, 'עדכון התאמות', student_id, _norm(old.get('B')), '; '.join(details)])
             if details:
                 changes += 1
         if mode == 'update':
-            unmatched = len(set(accommodations) - matched)
+            unmatched = len(set(active_accommodations) - matched)
             # Keep a count for the UI; detailed rows are already in LOG.
         else:
-            unmatched = len(set(accommodations) - matched)
+            unmatched = len(set(active_accommodations) - matched)
     else:
         unmatched = 0
     if mode == 'new' or mode == 'update':
@@ -478,7 +486,7 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
     files[dbase_path] = xml.encode('utf-8')
     value = _write(infos, files)
     meta = {'mode': mode, 'students': len(students), 'sheets': sheets,
-            'accommodationStudents': len(accommodations), 'accommodationSheets': accommodation_sheets,
+            'accommodationStudents': len(active_accommodations), 'accommodationSheets': accommodation_sheets,
             'changes': changes, 'logEntries': max(0, len(log_rows) - 1),
             'unmatchedAccommodations': unmatched,
             'studentFileLoaded': bool(student_data), 'accommodationFileLoaded': bool(accommodation_data)}

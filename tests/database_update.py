@@ -91,6 +91,17 @@ assert old_header_rows[2].get('E', '') == old_header_rows[2].get('F', '') == ''
 new_header_rows = rows
 assert new_header_rows[2]['E'] == new_header_rows[2]['F'] == 'כן'
 
+# During an update, blank accommodation cells clear stale values from dbase and are logged.
+stale_base = classlist(row(2, {'A': '115', 'B': 'תלמיד בדיקה', 'D': '25', 'E': 'כן', 'F': 'כן',
+                              'G': 'מורה', 'H': '4', 'J': '1', 'L': '1', 'M': '1'}))
+cleared, clear_meta = import_database(stale_base, b'', accommodations([('115', {})]), 'update', 'classlist.xlsx')
+_, files = _files(cleared)
+clear_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
+assert all(clear_rows[2].get(column, '') == '' for column in ('D', 'E', 'F', 'L', 'M'))
+clear_log = _read_sheet(files['xl/worksheets/sheet3.xml'], _strings(files))
+assert clear_meta['logEntries'] == 1 and clear_log[2]['B'] == 'עדכון התאמות'
+assert 'בוטל/הוסר' in clear_log[2]['E']
+
 # Initial load sorts by teacher, study units, then student name.
 multi_headers = row(3, {'CT': 'מתמטיקה 5 יח יב1 מורה ב', 'CU': 'מתמטיקה 3 יח יב1 מורה א',
                         'CV': 'מתמטיקה 4 יח יב1 מורה א'})
@@ -136,7 +147,7 @@ rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
 assert [rows[i]['A'] for i in range(2, 6)] == ['101', '102', '103', '104']
 assert rows[2]['G'] == rows[3]['G'] == rows[4]['G'] == 'מורה בדיקה'
 assert [rows[i].get('J', '') for i in (2, 3, 4, 5)] == ['1', '', '0', '']
-assert rows[5]['B'] == 'ישן ד' and rows[4]['L'] == '1'
+assert rows[5]['B'] == 'ישן ד' and rows[4].get('L', '') == ''
 assert update_meta['dbaseRecords'] == 4 and update_meta['dbaseNonParticipants'] == 3
 assert update_meta['matchedNonParticipants'] == 2 and update_meta['updatedNonParticipants'] == 2
 assert update_meta['unmatchedRecords'] == 1 and update_meta['unmatchedNonParticipants'] == 1
