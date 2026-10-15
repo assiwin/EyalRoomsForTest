@@ -59,24 +59,39 @@ def student_matrix(records):
 
 def accommodations(records):
     header = row(3, {'B': 'תעודת זהות', 'F': 'תוספת זמן 25%', 'G': 'הגדלת שאלון בחינה',
-                     'H': 'מתמטיקה והקראה', 'I': 'חדר מצומצם', 'J': 'חדר נפרד'})
+                     'H': 'מתמטיקה והקראה', 'I': 'כיתה מצומצמת', 'J': 'חדר נפרד'})
     content = ''.join(row(i + 4, {'B': sid, **values}) for i, (sid, values) in enumerate(records))
     return workbook([('התאמות', header + content)])
 
 
-# Initial import keeps students without a math X and reports them in LOG.
+# Initial import omits students without a math X and reports them in LOG.
 base_blank = classlist('')
 student_file = student_matrix([('101', 'כהן א', 'X'), ('102', 'לוי ב', '')])
 accommodation_file = accommodations([('101', {'F': 'X', 'G': 'X', 'H': 'X', 'I': 'X', 'J': 'X'})])
 created, meta = import_database(base_blank, student_file, accommodation_file, 'new', 'classlist.xlsx')
 _, files = _files(created)
 rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
-assert [rows[i]['A'] for i in (2, 3)] == ['101', '102']
+assert [rows[i]['A'] for i in (2,)] == ['101']
 assert rows[2]['G'] == 'מורה בדיקה' and rows[2]['H'] == '4' and rows[2]['J'] == '1'
 assert rows[2]['C'] == 'י1'
 assert rows[2]['D'] == '25' and rows[2]['E'] == rows[2]['F'] == 'כן'
 assert rows[2]['L'] == rows[2]['M'] == '1'
-assert meta['logEntries'] == 2 and meta['students'] == 2
+assert meta['logEntries'] == 1 and meta['students'] == 2
+log = _read_sheet(files['xl/worksheets/sheet3.xml'], _strings(files))
+assert log[2]['C'] == '102'  # successful accommodations are not listed on initial load
+
+# Initial load sorts by teacher, study units, then student name.
+multi_headers = row(3, {'CT': 'מתמטיקה 5 יח יב1 מורה ב', 'CU': 'מתמטיקה 3 יח יב1 מורה א',
+                        'CV': 'מתמטיקה 4 יח יב1 מורה א'})
+multi_students = ''.join([
+    row(4, {'B': '203', 'C': 'זד', 'E': 'י', 'F': '1', 'CT': 'X'}),
+    row(5, {'B': '202', 'C': 'בית', 'E': 'י', 'F': '1', 'CU': 'X'}),
+    row(6, {'B': '201', 'C': 'אלף', 'E': 'י', 'F': '1', 'CV': 'X'}),
+])
+sorted_file, _ = import_database(base_blank, workbook([('נתוני תלמידים', multi_headers + multi_students)]), b'', 'new', 'classlist.xlsx')
+_, files = _files(sorted_file)
+sorted_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
+assert [sorted_rows[i]['A'] for i in (2, 3, 4)] == ['202', '201', '203']
 
 # A grade-7 teacher name gets a suffix only when that teacher also teaches a 3-unit class.
 headers = row(3, {'CT': 'מתמטיקה 3 יח י7 מורה א [1]', 'CU': 'מתמטיקה 4 יח יב3 מורה א [2]'})
@@ -93,6 +108,15 @@ base = classlist(
     + row(3, {'A': '102', 'B': 'כהן ב', 'C': 'י1', 'G': 'מורה ישן', 'H': '3'})
     + row(4, {'A': '103', 'B': 'כהן ג', 'C': 'י1', 'G': 'מורה ישן', 'H': '3', 'J': '0', 'L': '1'})
     + row(5, {'A': '104', 'B': 'ישן ד', 'C': 'י1', 'G': 'מורה ישן', 'H': '3'}))
+
+# A teacherless update preserves an existing assignment and is logged without an accommodation duplicate.
+teacherless_update, _ = import_database(base, student_matrix([('101', 'כהן א', '')]),
+                                        accommodations([('999', {'F': 'X'})]), 'update', 'classlist.xlsx')
+_, files = _files(teacherless_update)
+updated_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
+assert updated_rows[2]['G'] == 'מורה ישן'
+log_rows = _read_sheet(files['xl/worksheets/sheet3.xml'], _strings(files))
+assert log_rows[2]['C'] == '101' and log_rows[2]['B'] == 'חסר שיבוץ מתמטיקה'
 updated, update_meta = import_database(
     base, student_matrix([('101', 'כהן א', 'X'), ('102', 'כהן ב', 'X'), ('103', 'כהן ג', 'X'), ('105', 'חדש ה', 'X')]),
     accommodations([('103', {'F': 'X'})]), 'update', 'classlist.xlsx')

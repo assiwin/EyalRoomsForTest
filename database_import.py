@@ -190,7 +190,7 @@ def parse_accommodations_workbook(data):
                 columns[col] = ('E', 'כן')
             if 'מתמטיקה והקראה' in label:
                 columns[col] = ('F', 'כן')
-            if 'חדר מצומצם' in label:
+            if 'כיתה מצומצמת' in label:
                 columns[col] = ('L', '1')
             if 'חדר נפרד' in label:
                 columns[col] = ('M', '1')
@@ -376,15 +376,19 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
     changes = 0
     now = datetime.now().strftime('%d/%m/%Y %H:%M')
     if mode == 'new':
+        teacherless = [student for student in students if not student['teacher'] or not student['unit']]
+        loadable = [student for student in students if student['teacher'] and student['unit']]
+        unit_order = {'3': 0, '3א': 1, '4': 2, '5': 3}
+        loadable.sort(key=lambda item: (item['teacher'], unit_order.get(item['unit'], 99), item['name']))
         if students:
-            xml = _replace_dbase_new(xml, students)
-            changes = len(students)
+            xml = _replace_dbase_new(xml, loadable)
+            changes = len(loadable)
         existing_rows = _read_sheet(xml.encode('utf-8'), shared)
         existing = _dbase_records(existing_rows)
-        for student in students:
-            if not student['teacher'] or not student['unit']:
-                log_rows.append([now, 'חסר שיבוץ מתמטיקה', student['id'], student['name'],
-                                 'לא נמצא סימון X בעמודת מתמטיקה; יש לבדוק שיוך, מורה ויחידות.'])
+        teacherless_ids = {student['id'] for student in teacherless}
+        for student in teacherless:
+            log_rows.append([now, 'חסר שיבוץ מתמטיקה', student['id'], student['name'],
+                             'לא נמצא סימון X בעמודת מתמטיקה; יש לבדוק שיוך, מורה ויחידות.'])
     else:
         existing_rows = _read_sheet(files[dbase_path], _strings(files))
         existing = _dbase_records(existing_rows)
@@ -399,10 +403,16 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
             labels = {'B': 'שם תלמיד', 'C': 'כיתה', 'G': 'מורה', 'H': 'יחידות'}
             keys = {'B': 'name', 'C': 'class', 'G': 'teacher', 'H': 'unit'}
             for student_id, candidates in incoming.items():
+                student = candidates[0]
+                if not student['teacher'] or not student['unit']:
+                    if student_id in existing:
+                        found.add(student_id)
+                    log_rows.append([now, 'חסר שיבוץ מתמטיקה', student_id, student['name'],
+                                     'לא נמצא סימון X בעמודת מתמטיקה; פרטי המורה והיחידות הקיימים נשמרו לבדיקה.'])
+                    continue
                 if student_id not in existing:
-                    student = candidates[0]
                     log_rows.append([now, 'לבדיקה - תלמיד חדש', student_id, student['name'],
-                                     f"כיתה {student['class']}, מורה {student['teacher'] or 'לא נמצאה מתמטיקה'}, {student['unit'] or 'יחידות לא ידועות'}"])
+                                     f"כיתה {student['class']}, מורה {student['teacher']}, {student['unit']}"])
                     continue
                 found.add(student_id)
                 if student_id in nonparticipants:
@@ -412,10 +422,6 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
                 # marked teacher/group as a separate row in the new-load path. Updates
                 # use the first marked assignment for the existing classlist row.
                 student = candidates[0]
-                if not student['teacher'] or not student['unit']:
-                    log_rows.append([now, 'חסר שיבוץ מתמטיקה', student_id, student['name'],
-                                     'לא נמצא סימון X בעמודת מתמטיקה; פרטי המורה והיחידות הקיימים נשמרו לבדיקה.'])
-                    continue
                 details = []
                 for column in ('B', 'C', 'G', 'H'):
                     after = student[keys[column]]
@@ -444,8 +450,9 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
         for student_id, values in accommodations.items():
             record = records.get(student_id)
             if not record:
-                log_rows.append([now, 'לבדיקה - התאמות ללא תלמיד ב־dbase', student_id, '',
-                                 'לא נמצאה תעודת זהות זו בגיליון dbase; לא נוצרה רשומה.'])
+                if mode != 'new' or student_id not in teacherless_ids:
+                    log_rows.append([now, 'לבדיקה - התאמות ללא תלמיד ב־dbase', student_id, '',
+                                     'לא נמצאה תעודת זהות זו בגיליון dbase; לא נוצרה רשומה.'])
                 continue
             matched.add(student_id)
             row_number, old = record
@@ -455,8 +462,9 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
                 if before != value:
                     xml = _set_cell(xml, f'{column}{row_number}', value)
                     details.append(f'{column}: „{before}” ← „{value}”')
-            if details:
+            if details and mode == 'update':
                 log_rows.append([now, 'עדכון התאמות', student_id, _norm(old.get('B')), '; '.join(details)])
+            if details:
                 changes += 1
         if mode == 'update':
             unmatched = len(set(accommodations) - matched)

@@ -1,3 +1,13 @@
+24.0.0
+
+New in this version:
+- Reads reduced-room accommodation from the exact “כיתה מצומצמת” header.
+- Keeps students without a math teacher assignment out of dbase and records them in LOG.
+- Sorts initial dbase imports by teacher, study units, and student name.
+- Keeps successful accommodation field details out of LOG during initial load.
+- Removes the permanent reminder from the main screen.
+
+Previous version:
 23.0.0
 
 New in this version:
