@@ -1,3 +1,12 @@
+27.0.0
+
+New in this version:
+- Refreshes the interface with a polished exam-day control-room design.
+- Adds a responsive progress rail across the four main workflow stages.
+- Highlights the exam-grade selector and schedule in the opening workspace.
+- Improves cards, tables, buttons, form controls, and mobile layouts.
+
+Previous version:
 26.0.0
 
 New in this version:

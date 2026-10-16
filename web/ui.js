@@ -11,6 +11,12 @@ $('aboutDialog').addEventListener('click',event=>{
 });
 $('aboutDialog').addEventListener('close',()=>$('about').focus({preventScroll:true}));
 
+function setJourney(screenId){
+  const steps=[...document.querySelectorAll('[data-journey]')],current=steps.findIndex(step=>step.dataset.journey===screenId);
+  steps.forEach((step,index)=>{step.classList.toggle('is-complete',index<current);step.classList.toggle('is-current',index===current);if(index===current)step.setAttribute('aria-current','step');else step.removeAttribute('aria-current')});
+}
+setJourney('databaseScreen');
+
 const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
 const scheduleDefaults={'3a':{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'08:45',duration:160},5:{start:'10:35',duration:130}};
 function scheduleEnd(start,duration,extra){
@@ -55,7 +61,7 @@ async function api(path,body,raw=false){
 
 function fileToBase64(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onerror=()=>reject(Error('קריאת הקובץ נכשלה.'));reader.onload=()=>resolve(String(reader.result).split(',',2)[1]);reader.readAsDataURL(file)})}
 function databaseControls(){const input=$('studentDataFile').files[0]||$('accommodationDataFile').files[0];$('processDatabase').disabled=databaseBusy||!databaseBaseSelected||!input;$('chooseDatabaseBase').disabled=databaseBusy}
-function showAssignment(){$('databaseScreen').hidden=true;$('seatingScreen').hidden=true;$('mainScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'});controls()}
+function showAssignment(){$('databaseScreen').hidden=true;$('seatingScreen').hidden=true;$('mainScreen').hidden=false;setJourney('mainScreen');window.scrollTo({top:0,behavior:'smooth'});controls()}
 document.querySelectorAll('input[name=databaseMode]').forEach(input=>input.onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()});
 $('chooseDatabaseBase').onclick=async()=>{
   try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;const info=await api('/select-database-base',{});if(info.cancelled)return;databaseBaseSelected=true;$('databaseBaseSelection').textContent=info.path||info.filename;$('databaseSuccess').hidden=true;databaseReady=false;$('databaseStatus').textContent='קובץ classlist נבחר. יש לבחור לפחות אחד: נתוני תלמידים או התאמות.'}
@@ -184,10 +190,10 @@ function buildRoomMap(){
   $('roomMapRows').innerHTML=rooms.map(room=>`<tr><td>חדר ${room}</td><td><input class="physical-room" data-room="${room}" maxlength="40" required autocomplete="off" value="${esc(previous[room]||savedRoomLabels[room]||'')}" placeholder="לדוגמה: י1 121" aria-label="חדר בחינה פיזי עבור חדר ${room}"></td></tr>`).join('');
   roomMapInputs().forEach(input=>input.oninput=()=>{invalidateTeacherReports();setRoomMapError('');updateRoomMapControls()});invalidateTeacherReports();updateRoomMapControls();
 }
-function showRoomMap(){if(!result||!pdfInfo)return;buildRoomMap();$('mainScreen').hidden=true;$('roomMapScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
-function showMain(){$('roomMapScreen').hidden=true;$('mainScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
-function showSeating(){$('roomMapScreen').hidden=true;$('mainScreen').hidden=true;$('seatingScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
-function showRoomMapAgain(){$('seatingScreen').hidden=true;$('roomMapScreen').hidden=false;window.scrollTo({top:0,behavior:'smooth'})}
+function showRoomMap(){if(!result||!pdfInfo)return;buildRoomMap();$('mainScreen').hidden=true;$('roomMapScreen').hidden=false;setJourney('roomMapScreen');window.scrollTo({top:0,behavior:'smooth'})}
+function showMain(){$('roomMapScreen').hidden=true;$('mainScreen').hidden=false;setJourney('mainScreen');window.scrollTo({top:0,behavior:'smooth'})}
+function showSeating(){$('roomMapScreen').hidden=true;$('mainScreen').hidden=true;$('seatingScreen').hidden=false;setJourney('seatingScreen');window.scrollTo({top:0,behavior:'smooth'})}
+function showRoomMapAgain(){$('seatingScreen').hidden=true;$('roomMapScreen').hidden=false;setJourney('roomMapScreen');window.scrollTo({top:0,behavior:'smooth'})}
 function collectRoomLabels(){
   const labels={};for(const input of roomMapInputs()){const value=input.value.trim();if(!value)throw Error(`חסר מספר חדר בחינה עבור חדר ${input.dataset.room}.`);labels[input.dataset.room]=value}
   if(new Set(Object.values(labels)).size!==Object.values(labels).length)throw Error('כל מספר חדר בחינה חייב להיות ייחודי.');return labels;

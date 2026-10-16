@@ -15,11 +15,19 @@
       <button id="about" class="about-button" type="button" aria-haspopup="dialog" aria-controls="aboutDialog">אודות</button>
     </div>
   </header>
+  <nav class="journey" aria-label="שלבי העבודה">
+    <ol>
+      <li data-journey="databaseScreen" aria-current="step"><span>01</span><b>נתוני תלמידים</b></li>
+      <li data-journey="mainScreen"><span>02</span><b>הגדרת שיבוץ</b></li>
+      <li data-journey="roomMapScreen"><span>03</span><b>חדרים ודוחות</b></li>
+      <li data-journey="seatingScreen"><span>04</span><b>סידורי ישיבה</b></li>
+    </ol>
+  </nav>
   <main id="databaseScreen">
     <div class="intro database-intro">
-      <span class="eyebrow">שלב 01</span>
-      <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
-      <p>הכנת בסיס הנתונים לפני תחילת השיבוץ.</p>
+      <span class="eyebrow">מתחילים כאן · 01</span>
+      <h1>מכינים את בסיס הנתונים לשיבוץ</h1>
+      <p>טוענים נתוני תלמידים והתאמות, ובודקים שהכול מוכן ליום הבחינה.</p>
     </div>
     <section class="panel database-panel">
       <div class="step"><span>01</span><h2>טעינה ראשונית או עדכון של קובץ קיים</h2></div>
@@ -43,7 +51,7 @@
   <main id="mainScreen" hidden>
     <div class="intro">
       <div class="title-and-grade">
-        <h1>אפליקציה לשיבוץ חדרים לנבחנים</h1>
+        <div class="hero-title"><span class="eyebrow">מרכז השליטה ליום הבחינה</span><h1>שיבוץ מדויק. יום בחינה מסודר.</h1></div>
         <section class="title-grade-picker" aria-labelledby="gradeTitle">
           <b id="gradeTitle">מבחן שכבה</b>
           <div class="grade-options" role="radiogroup" aria-label="מבחן שכבה">
@@ -53,7 +61,7 @@
           </div>
         </section>
       </div>
-      <p>טוענים קובץ תלמידים, מגדירים כללים, מפיקים שיבוץ ודפי מעטפות מוכנים.</p>
+      <p>כל הנתונים, החדרים והדוחות הנחוצים — בתהליך אחד ברור.</p>
       <section class="schedule-compact" aria-labelledby="scheduleTitle">
           <div class="schedule-compact-header"><div><b id="scheduleTitle">חישובי זמני הבחינה</b><span>שינוי שעת התחלה או משך הבחינה מעדכן ושומר מיד</span></div><div class="schedule-header-actions"><button id="makeSchedulePdf" type="button" class="smallbutton schedule-pdf-button">צור PDF</button><button id="resetSchedule" type="button" class="smallbutton">איפוס</button></div></div>
           <form id="scheduleForm">
@@ -186,7 +194,7 @@
     <div class="about-heading"><h2 id="aboutTitle">אודות סדרן חדרים</h2><button id="closeAbout" class="about-close" type="button" aria-label="סגירת חלון אודות" autofocus>×</button></div>
     <p>אפליקציה לשיבוץ חדרים לנבחנים ולהכנת קובצי הבחינה.</p>
     <dl class="about-details">
-      <div><dt>גרסה</dt><dd><b dir="ltr">26.0.0</b></dd></div>
+      <div><dt>גרסה</dt><dd><b dir="ltr">27.0.0</b></dd></div>
       <div><dt>נוצר על ידי</dt><dd>אסי וינברגר ואייל שיף</dd></div>
       <div><dt>מערכת הפעלה</dt><dd>Windows 10 / 11, ‏64 ביט</dd></div>
     </dl>
