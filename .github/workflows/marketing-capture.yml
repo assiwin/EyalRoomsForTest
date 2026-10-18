@@ -1,0 +1,30 @@
+name: Capture marketing demo v27
+on:
+  push:
+    branches: [marketing-video-v27]
+  workflow_dispatch:
+jobs:
+  capture:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt openpyxl edge-tts
+      - run: npm install --no-save playwright
+      - run: npx playwright install ffmpeg
+      - run: python marketing/make_fixture.py
+      - run: node marketing/capture.cjs
+      - run: python marketing/narration.py
+        continue-on-error: true
+      - name: Download Hebrew typeface
+        shell: pwsh
+        continue-on-error: true
+        run: Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/google/fonts/main/ofl/heebo/Heebo%5Bwght%5D.ttf' -OutFile 'marketing/capture/Heebo.ttf'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Marketing_v27_capture
+          path: marketing/capture/
