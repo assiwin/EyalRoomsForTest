@@ -61,7 +61,7 @@ def card(im,img,x=65,y=260,width=1130,scale=1):
  d.rounded_rectangle((x-3,y-38,x+width+3,y+height+3),radius=22,fill='#294256')
  d.rectangle((x-3,y-8,x+width+3,y+height-16),fill='#294256')
  for i,c in enumerate(['#FF9C91','#E3C46C','#60C9AD']):d.ellipse((x+19+i*20,y-24,x+28+i*20,y-15),fill=c)
- text(im,'סדרן חדרים',x+width-20,y-18,18,'#CBE0EB',500)
+ text(im,'סדרן חדרים',x+width-20,y-18,18,'#CBE0EB',500,'rm')
  im.paste(img.resize((width,height),Image.Resampling.LANCZOS),(int(x),int(y)))
 
 def screen(im,name,p=0,top=250,width=1140):
@@ -146,7 +146,7 @@ def scene(n,u,t):
   pic=load('results-element.png')
   # Show the summary + complete matrix, excluding the collapsed technical details.
   pic=pic.crop((0,260,pic.width,812))
-  card(im,pic,90,205,1060)
+  card(im,pic,110,185,1020)
   pill(im,f"{META['students']} תלמידים בהדגמה",1830,650,380)
   pill(im,f"{META['rooms']} חדרים בתוצאה",1830,725,380)
  elif n==4:
@@ -184,8 +184,6 @@ CAPTIONS=json.loads((A/'captions.json').read_text()) if (A/'captions.json').exis
 def frame(t):
  n=next(i for i in range(8) if TIMES[i]<=t<TIMES[i+1]);u=t-TIMES[n];im=scene(n,u,t)
  if n>0 and u<.45:im=Image.blend(scene(n-1,TIMES[n]-TIMES[n-1]-.001,t),im,ease(u/.45))
- if t<.5:im=Image.blend(Image.new('RGB',(W,H),NAVY),im,t/.5)
- if t>DURATION-.7:im=Image.blend(im,Image.new('RGB',(W,H),NAVY),(t-(DURATION-.7))/.7)
  return im
 
 if __name__=='__main__':
