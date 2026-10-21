@@ -154,11 +154,22 @@ def parse_teacher_workbook(data):
             for item in marked:
                 if item['grade7'] and item['teacher'] in special_grade_teachers:
                     item['teacher'] += item['grade7']
-            assignments = marked or [{'teacher': '', 'unit': '', 'grade7': ''}]
-            for assignment in assignments:
-                students.append({'id': student_id, 'name': name, 'class': class_name,
-                                 'teacher': assignment['teacher'], 'unit': assignment['unit'],
-                                 'source': f'{sheet_name} שורה {row_number}'})
+            # A single student row can have X marks under two math teachers,
+            # for example when a 3א group is co-taught. dbase represents one
+            # student per row, so retain the combined teacher assignment in
+            # one record instead of creating duplicate student IDs.
+            units = {assignment['unit'] for assignment in marked}
+            if len(units) > 1:
+                labels = ', '.join(sorted(units))
+                raise ValueError(
+                    f'גיליון „{sheet_name}”, שורה {row_number}: לתלמיד {student_id} '
+                    f'סומנו כמה רמות מתמטיקה ({labels}). יש לבדוק את השיוך לפני הטעינה.')
+            teachers = list(dict.fromkeys(item['teacher'] for item in marked if item['teacher']))
+            teacher = ' / '.join(teachers)
+            unit = next(iter(units), '')
+            students.append({'id': student_id, 'name': name, 'class': class_name,
+                             'teacher': teacher, 'unit': unit,
+                             'source': f'{sheet_name} שורה {row_number}'})
             seen[student_id] = f'{sheet_name} שורה {row_number}'
     if not students:
         raise ValueError('לא נמצאו תלמידים בקובץ נתוני התלמידים החל משורה 4.')
@@ -422,9 +433,6 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
                 if student_id in nonparticipants:
                     matched_nonparticipants += 1
                 row_number, old = existing[student_id]
-                # A student may be marked in more than one math column; preserve each
-                # marked teacher/group as a separate row in the new-load path. Updates
-                # use the first marked assignment for the existing classlist row.
                 student = candidates[0]
                 details = []
                 for column in ('B', 'C', 'G', 'H'):

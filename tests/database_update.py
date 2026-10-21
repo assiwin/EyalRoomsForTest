@@ -115,6 +115,28 @@ _, files = _files(sorted_file)
 sorted_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
 assert [sorted_rows[i]['A'] for i in (2, 3, 4)] == ['202', '201', '203']
 
+# A single student may be assigned to multiple teachers within the same math
+# level (co-taught 3א groups). Keep one dbase row and retain both teacher names.
+co_taught_headers = row(3, {'CT': 'מתמטיקה 3 יח יב1 מורה א', 'CU': 'מתמטיקה 3 יח יב1 מורה ב'})
+co_taught_row = row(4, {'B': '301', 'C': 'תלמיד משותף', 'E': 'י', 'F': '1', 'CT': 'X', 'CU': 'X'})
+co_taught_output, co_taught_meta = import_database(
+    base_blank, workbook([('נתוני תלמידים', co_taught_headers + co_taught_row)]), b'', 'new', 'classlist.xlsx')
+_, files = _files(co_taught_output)
+co_taught_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
+assert co_taught_meta['students'] == 1
+assert co_taught_rows[2]['A'] == '301' and co_taught_rows.get(3, {}).get('A', '') == ''
+assert co_taught_rows[2]['G'] == 'מורה א / מורה ב' and co_taught_rows[2]['H'] == '3'
+
+# One student cannot be loaded into two different study levels as one dbase row.
+mixed_levels = row(3, {'CT': 'מתמטיקה 3 יח יב1 מורה א', 'CU': 'מתמטיקה 4 יח יב1 מורה ב'})
+mixed_student = row(4, {'B': '302', 'C': 'תלמיד בדיקה', 'E': 'י', 'F': '1', 'CT': 'X', 'CU': 'X'})
+try:
+    import_database(base_blank, workbook([('נתוני תלמידים', mixed_levels + mixed_student)]), b'', 'new', 'classlist.xlsx')
+except ValueError as error:
+    assert 'כמה רמות מתמטיקה' in str(error) and '302' in str(error)
+else:
+    raise AssertionError('A student marked in two math levels was silently assigned twice')
+
 # A grade-7 teacher name gets a suffix only when that teacher also teaches a 3-unit class.
 headers = row(3, {'CT': 'מתמטיקה 3 יח י7 מורה א [1]', 'CU': 'מתמטיקה 4 יח יב3 מורה א [2]'})
 marked = row(4, {'B': '201', 'C': 'תלמיד', 'E': 'י', 'F': '7', 'CT': 'X'})
