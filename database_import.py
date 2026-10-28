@@ -182,6 +182,11 @@ def parse_accommodations_workbook(data):
             if _column_number(col) < 6:
                 continue
             label = _norm(label)
+            # Accommodations awaiting committee approval must never affect a
+            # student's classlist, even when the rest of the header matches a
+            # recognized accommodation.
+            if 'טרם אושר' in re.sub(r'\s+', ' ', label):
+                continue
             if 'תוספת זמן' in label:
                 percent_match = re.search(r'(?<!\d)(50|33|25)\s*%', label)
                 percent = percent_match.group(1) if percent_match else ''
