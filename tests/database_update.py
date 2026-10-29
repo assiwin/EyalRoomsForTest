@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from database_import import _files, _read_sheet, _strings, import_database, parse_teacher_workbook
+import engine
 
 MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
 REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
@@ -46,7 +47,8 @@ def workbook(sheets):
 
 def classlist(rows):
     header = row(1, {'A': 'תעודת זהות', 'B': 'שם תלמיד', 'C': 'כיתה', 'D': 'תוספת זמן',
-                     'E': 'הגדלה', 'F': 'הקראה', 'G': 'מורה', 'H': 'יחידות', 'J': 'משתתף'})
+                     'E': 'הגדלה', 'F': 'הקראה', 'G': 'מורה', 'H': 'יחידות', 'I': 'חדר', 'J': 'משתתף',
+                     'K': 'בר אילן', 'L': 'מצומצם', 'M': 'נפרד'})
     return workbook([('dbase', header + rows), ('ניהול', row(1, {'A': 'ניהול'}))])
 
 
@@ -114,6 +116,32 @@ sorted_file, _ = import_database(base_blank, workbook([('נתוני תלמידי
 _, files = _files(sorted_file)
 sorted_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
 assert [sorted_rows[i]['A'] for i in (2, 3, 4)] == ['202', '201', '203']
+
+# Mabar class recognition comes from the exact class code in the math heading.
+# A range that contains class 5 stays a regular 3-unit group.
+mbar_headers = row(3, {'CT': 'מתמטיקה 3 יח יא5 מורה מבר',
+                       'CU': 'מתמטיקה 3 יח יא1-יא6 מורה רגילה'})
+mbar_students = row(4, {'B': '501', 'C': 'תלמיד מב"ר', 'E': 'יא', 'F': '5', 'CT': 'X'}) + row(
+    5, {'B': '502', 'C': 'תלמיד בטווח', 'E': 'יא', 'F': '5', 'CU': 'X'})
+mbar_matrix = workbook([('נתוני תלמידים', mbar_headers + mbar_students)])
+mbar_parsed, _ = parse_teacher_workbook(mbar_matrix)
+assert [(item['id'], item['teacher'], item['unit']) for item in mbar_parsed] == [
+    ('501', 'מורה', 'מב"ר'), ('502', 'מורה רגילה', '3')]
+mbar_initial, _ = import_database(base_blank, mbar_matrix, b'', 'new', 'classlist.xlsx')
+_, mbar_files = _files(mbar_initial)
+mbar_rows = _read_sheet(mbar_files['xl/worksheets/sheet1.xml'], _strings(mbar_files))
+assert mbar_rows[2]['H'] == 'מב"ר' and mbar_rows[2]['G'] == 'מורה'
+assert mbar_rows[3]['H'] == '3' and mbar_rows[3]['G'] == 'מורה רגילה'
+mbar_book = engine.read_book(mbar_initial)
+assert [student['unit'] for student in mbar_book['participants']] == ['מב"ר', '3']
+mbar_result = engine.solve(mbar_book, {
+    'normal': 29, 'maximum': 32, 'percent': 30, 'level': 16, 'limit': 25,
+    'singleDesk': False, 'reducedRooms': 0, 'extraTimePolicy': 'regularTogether'})
+assert mbar_result['matrix']['unitTotals']['מב"ר'] == 1
+mbar_updated, _ = import_database(mbar_initial, mbar_matrix, b'', 'update', 'classlist.xlsx')
+_, mbar_files = _files(mbar_updated)
+mbar_rows = _read_sheet(mbar_files['xl/worksheets/sheet1.xml'], _strings(mbar_files))
+assert mbar_rows[2]['H'] == 'מב"ר' and mbar_rows[3]['H'] == '3'
 
 # A grade-7 teacher name gets a suffix only when that teacher also teaches a 3-unit class.
 headers = row(3, {'CT': 'מתמטיקה 3 יח י7 מורה א [1]', 'CU': 'מתמטיקה 4 יח יב3 מורה א [2]'})

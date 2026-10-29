@@ -226,7 +226,7 @@ def create_envelopes_pdf(book, result, grade, notes, font_base):
         student_table.drawOn(canvas, left, table_y)
 
         counts = Counter(s.get('unit', '') for s in all_members)
-        order = ['3', '3א', '4', '5']
+        order = ['3', '3א', 'מב"ר', '4', '5']
         summary = '   '.join(f'{counts[u]} נבחנים {u} יח׳' for u in order if counts[u])
         canvas.setFont('EnvelopeHebrewBold', 9.5)
         canvas.drawRightString(right, table_y - 7 * mm, _visual(summary))

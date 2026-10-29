@@ -21,7 +21,7 @@ def _safe_filename(value):
 
 
 def _unit_key(value):
-    return {'3': 0, '3א': 1, '4': 2, '5': 3}.get(value, 9)
+    return {'3': 0, '3א': 1, 'מב"ר': 1, '4': 2, '5': 3}.get(value, 9)
 
 
 def _validate_room_labels(result, room_labels):

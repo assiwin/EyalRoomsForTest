@@ -1,3 +1,10 @@
+30.0.0
+
+New in this version:
+- Detects Mabar homerooms י5, יא5, and יב5 from exact math-column class tokens and stores the unit as “מב\"ר” in dbase.
+- Keeps Mabar in the existing special 3-level solver category while preserving “מב\"ר” in reports.
+
+Previous version:
 29.0.0
 
 New in this version:

@@ -84,14 +84,19 @@ def _teacher_from_header(header):
         return None
     details = text.replace('מתמטיקה', '', 1).strip()
     unit = ''
-    if re.search(r'מב["״\']?ר', details):
-        unit = '3א'
+    mbar_label = re.search(r'מב["״\']?ר', details)
+    # Only an exact homeroom token identifies the Mabar class; a range such
+    # as יא1-יא6 must not classify every included class as Mabar.
+    mbar_class = re.search(r'(?<![\w\-–])(?:י|יא|יב)\s*5(?!\d)(?!\s*[-–])', details)
+    if mbar_label or mbar_class:
+        unit = 'מב"ר'
+    if mbar_label:
         details = re.sub(r'מב["״\']?ר', '', details).strip()
-    else:
-        match = re.search(r'(?<!\d)([345])\s*יח(?:ידות)?\b', details)
-        if match:
+    match = re.search(r'(?<!\d)([345])\s*יח(?:ידות)?\b', details)
+    if match:
+        if not unit:
             unit = match.group(1)
-            details = details[:match.start()] + ' ' + details[match.end():]
+        details = details[:match.start()] + ' ' + details[match.end():]
     class_match = re.search(r'(?<!\w)(י|יא|יב)\s*(\d+)(?:\s*[-–]\s*(?:י|יא|יב)?\s*\d+)?', details)
     grade7 = ''
     if class_match:
@@ -106,8 +111,6 @@ def _teacher_from_header(header):
     if not unit:
         return {'teacher': teacher, 'unit': '', 'grade7': grade7}
     return {'teacher': teacher, 'unit': unit, 'grade7': grade7}
-
-
 def parse_teacher_workbook(data):
     """Read the school's student matrix: row 3 headers, student data from row 4."""
     _, files = _files(data)
@@ -387,7 +390,7 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
     if mode == 'new':
         teacherless = [student for student in students if not student['teacher'] or not student['unit']]
         loadable = [student for student in students if student['teacher'] and student['unit']]
-        unit_order = {'3': 0, '3א': 1, '4': 2, '5': 3}
+        unit_order = {'3': 0, '3א': 1, 'מב"ר': 1, '4': 2, '5': 3}
         loadable.sort(key=lambda item: (item['teacher'], unit_order.get(item['unit'], 99), item['name']))
         if students:
             xml = _replace_dbase_new(xml, loadable)

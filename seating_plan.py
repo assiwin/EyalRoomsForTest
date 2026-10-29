@@ -23,7 +23,7 @@ SEATS = [(row, column) for row in range(ROWS) for column in range(COLUMNS)]
 
 
 def _category(unit):
-    return '3' if _clean(unit) in ('3', '3א') else _clean(unit)
+    return '3' if _clean(unit) in ('3', '3א', 'מב"ר') else _clean(unit)
 
 
 def _conflicts():
