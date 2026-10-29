@@ -1,3 +1,10 @@
+31.0.0
+
+New in this version:
+- Shows “מב״ר” instead of “3א” in the additional room rules and removes the obsolete macro note.
+- Keeps units 3 and מב״ר separate in regular rooms; counts them together in single-desk rooms.
+
+Previous version:
 30.0.0
 
 New in this version:

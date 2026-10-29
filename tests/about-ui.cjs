@@ -16,22 +16,23 @@ for(const screen of ['databaseScreen','mainScreen','roomMapScreen','seatingScree
  assert(await page.locator('#about').isVisible());
  assert(await page.locator('#appIcon').evaluate(img=>img.complete&&img.naturalWidth>0));
  assert(await page.locator('.journey').isVisible());
- assert(!(await page.locator('body').innerText()).includes('30.0.0'));
+ if(screen==='mainScreen'){const rules=await page.locator('#settings details').innerText();assert(rules.includes('במצב רגיל אין ערבוב 3 ומב״ר'));assert(!rules.includes('3א'));assert(rules.includes('3 עם מב״ר נספרים יחד'));}
+ assert(!(await page.locator('body').innerText()).includes('31.0.0'));
  assert(!(await page.locator('body').innerText()).includes('אסי וינברגר'));
  await page.locator('#about').click();assert(await page.locator('#aboutDialog').isVisible());
- assert((await page.locator('#aboutDialog').innerText()).includes('30.0.0'));
+ assert((await page.locator('#aboutDialog').innerText()).includes('31.0.0'));
  assert((await page.locator('#aboutDialog').innerText()).includes('אסי וינברגר ואייל שיף'));
  await page.keyboard.press('Escape');assert(!(await page.locator('#aboutDialog').isVisible()));assert(await page.locator('#about').evaluate(e=>e===document.activeElement));
 }
 await page.evaluate(()=>document.querySelectorAll('main').forEach(e=>e.hidden=e.id!=='databaseScreen'));
-await page.screenshot({path:path.join(screenshots,'v30-main.png'),fullPage:true});
-await page.locator('#about').click();await page.screenshot({path:path.join(screenshots,'v30-about.png')});
+await page.screenshot({path:path.join(screenshots,'v31-main.png'),fullPage:true});
+await page.locator('#about').click();await page.screenshot({path:path.join(screenshots,'v31-about.png')});
 await page.locator('#closeAbout').click();assert(!(await page.locator('#aboutDialog').isVisible()));
 await page.locator('#about').click();await page.mouse.click(5,5);assert(!(await page.locator('#aboutDialog').isVisible()));
-await page.locator('#skipDatabase').click();assert(await page.locator('#mainScreen').isVisible());assert(await page.locator('[data-journey="mainScreen"]').getAttribute('aria-current')==='step');await page.locator('input[name=grade][value="י׳"]').check();assert(await page.locator('#chooseClasslist').isEnabled());
+await page.locator('#skipDatabase').click();assert(await page.locator('#mainScreen').isVisible());assert(await page.locator('[data-journey="mainScreen"]').getAttribute('aria-current')==='step');await page.locator('input[name=grade][value="י׳"]').check();assert(await page.locator('#chooseClasslist').isEnabled());await page.locator('#singleDesk').selectOption('yes');assert((await page.locator('#singleDeskInfo').innerText()).includes('3 ומב״ר נחשבים סוג אחד'));
 await page.setViewportSize({width:390,height:844});await page.locator('#about').click();
 const b=await page.locator('#aboutDialog').boundingBox();assert(b.x>=0&&b.x+b.width<=390);assert(await page.locator('#closeAbout').isVisible());
-await page.screenshot({path:path.join(screenshots,'v30-about-mobile.png')});
+await page.screenshot({path:path.join(screenshots,'v31-about-mobile.png')});
 assert.deepStrictEqual(errors,[]);console.log('About checks passed: four screens, hidden credits/version, Escape, close, backdrop, focus restoration, workflow controls, narrow viewport, no JS errors');
 }finally{await browser.close();server.close()}
 })().catch(e=>{console.error(e);process.exit(1)});

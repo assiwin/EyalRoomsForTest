@@ -143,6 +143,31 @@ _, mbar_files = _files(mbar_updated)
 mbar_rows = _read_sheet(mbar_files['xl/worksheets/sheet1.xml'], _strings(mbar_files))
 assert mbar_rows[2]['H'] == 'מב"ר' and mbar_rows[3]['H'] == '3'
 
+# Room rules use Mabar as the solver category, while accepting legacy 3a rows.
+def rule_students(count3, count_mbar, unit_mbar='מב"ר'):
+    students = []
+    for unit, count, teacher in [('3', count3, 'מורה 3'), (unit_mbar, count_mbar, 'מורה מב"ר')]:
+        for i in range(count):
+            index = len(students)
+            students.append({'row': index + 2, 'id': str(700000 + index),
+                             'name': f'תלמיד {unit} {i}', 'class': 'יא1', 'extra_time': '',
+                             'enlargement': '', 'reading': '', 'teacher': teacher, 'unit': unit,
+                             'assigned': '', 'active': True, 'future_reduced': False,
+                             'reduced': False, 'separate': False, 'flags': [], 'problematic': False})
+    return {'participants': students}
+
+rule_cfg = {'normal': 29, 'maximum': 32, 'percent': 30, 'level': 16, 'limit': 25,
+            'singleDesk': False, 'reducedRooms': 0, 'extraTimePolicy': 'regularTogether'}
+for legacy_unit in ('מב"ר', '3א'):
+    regular_result = engine.solve(rule_students(8, 8, legacy_unit), rule_cfg)
+    for room in regular_result['rooms']:
+        assert not ('3' in room['units'] and 'מב"ר' in room['units']), room['units']
+
+    single_result = engine.solve(rule_students(7, 7, legacy_unit), {**rule_cfg, 'singleDesk': True})
+    assert single_result['total'] == 2, single_result['total']
+    for room in single_result['rooms']:
+        assert room['units'].get('3', 0) + room['units'].get('מב"ר', 0) <= 13, room['units']
+
 # A grade-7 teacher name gets a suffix only when that teacher also teaches a 3-unit class.
 headers = row(3, {'CT': 'מתמטיקה 3 יח י7 מורה א [1]', 'CU': 'מתמטיקה 4 יח יב3 מורה א [2]'})
 marked = row(4, {'B': '201', 'C': 'תלמיד', 'E': 'י', 'F': '7', 'CT': 'X'})
