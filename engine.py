@@ -13,7 +13,7 @@ def clas(v): return re.sub(r'[\s\-״"׳\']','',norm(v))
 
 def unit_kind(unit):
     """Return the solver category while keeping the source label for reports."""
-    return '3א' if unit in ('3א', 'מב"ר') else unit
+    return 'מב"ר' if unit in ('3א', 'מב"ר') else unit
 
 def extra_percent(value):
     raw=norm(value).replace('%','').strip()
@@ -160,12 +160,12 @@ def solve(book,c,target=None):
     settings(c);p,groups,dedicated,reduced,separate,reduced_rooms=prepare_groups(book,c)
     for k,rr in dedicated.items():
         u=collections.Counter(unit_kind(r['unit']) for r in rr)
-        if len(rr)>c['maximum'] or max(u.values())>c['level'] or ('3' in u and '3א' in u):raise ValueError('הכיתה '+k+' אינה נכנסת לחדר ייעודי יחיד תחת הכללים. יש לתקן את הכללים או את הקלט.')
+        if len(rr)>c['maximum'] or max(u.values())>c['level'] or ('3' in u and 'מב"ר' in u):raise ValueError('הכיתה '+k+' אינה נכנסת לחדר ייעודי יחיד תחת הכללים. יש לתקן את הכללים או את הקלט.')
     extra=reduced_rooms+(1 if separate else 0)+len(dedicated);keys=list(groups);sizes=[len(groups[k]) for k in keys];G=len(keys);N=sum(sizes);units=collections.Counter()
     for k,n in zip(keys,sizes):units[unit_kind(k[1])]+=n
     for k,n in zip(keys,sizes):
         if n>c['level']*(2 if n<=32 else 3):raise ValueError('לא ניתן לעמוד במגבלת פיצול הקבוצה: '+k[0]+' / '+k[1])
-    lower=max([math.ceil(N/c['maximum']),math.ceil(units['3']/c['level'])+math.ceil(units['3א']/c['level'])]+[math.ceil(n/c['level']) for n in units.values()]) if N else 0
+    lower=max([math.ceil(N/c['maximum']),math.ceil(units['3']/c['level'])+math.ceil(units['מב"ר']/c['level'])]+[math.ceil(n/c['level']) for n in units.values()]) if N else 0
     if target is not None and (type(target) is not int or not extra<=target<=c['limit']):raise ValueError('מספר החדרים המבוקש מחוץ לטווח.')
     candidates=[target-extra] if target is not None else range(lower,c['limit']-extra+1)
     deadline=time.monotonic()+110; solution=None; balanced=False; split_optimal=False
@@ -191,10 +191,10 @@ def solve(book,c,target=None):
             d={X(g,r):1 for g in range(G)}
             add(d,1,c['maximum']);add({**d,O(r):-(c['maximum']-c['normal'])},-np.inf,c['normal'])
             add({**d,HIGH:-1},-np.inf,0);add({**d,LOW:-1},0,np.inf)
-            for u in ['3','3א','4','5']:
+            for u in ['3','מב"ר','4','5']:
                 d={X(g,r):1 for g,k in enumerate(keys) if unit_kind(k[1])==u};add(d,0,c['level'])
                 if u=='3':add({**d,Z(r):-c['level']},-np.inf,0)
-                if u=='3א':add({**d,Z(r):c['level']},-np.inf,c['level'])
+                if u=='מב"ר':add({**d,Z(r):c['level']},-np.inf,c['level'])
             if r<R-1:add({**{X(g,r):1 for g in range(G)},**{X(g,r+1):-1 for g in range(G)}},0,np.inf)
         add({O(r):1 for r in range(R)},0,math.floor(R*c['percent']/100))
         ub=np.ones(nvar);ub[:G*R]=c['level'];ub[-2:]=c['maximum']
@@ -257,7 +257,7 @@ def solve_single_desk(book,c,target=None):
     settings(c);p,groups,dedicated,reduced,separate,reduced_rooms=prepare_groups(book,c)
     for key,members in dedicated.items():
         units=collections.Counter(unit_kind(student['unit']) for student in members)
-        if len(members)>c['maximum'] or max(units.values())>c['level'] or ('3' in units and '3א' in units):raise ValueError('הכיתה '+key+' אינה נכנסת לחדר ייעודי יחיד תחת הכללים. יש לתקן את הכללים או את הקלט.')
+        if len(members)>c['maximum'] or max(units.values())>c['level'] or ('3' in units and 'מב"ר' in units):raise ValueError('הכיתה '+key+' אינה נכנסת לחדר ייעודי יחיד תחת הכללים. יש לתקן את הכללים או את הקלט.')
 
     keys=list(groups);sizes=[len(groups[key]) for key in keys];G=len(keys);N=sum(sizes);extra=reduced_rooms+(1 if separate else 0)+len(dedicated)
     category=lambda unit:'3' if unit in ('3','3א','מב"ר') else unit
@@ -366,7 +366,7 @@ def validate(book,c,a,R,kinds):
             u=collections.Counter(unit_kind(r['unit']) for r in rr)
             if c.get('singleDesk',False):
                 combined=collections.Counter(('3' if unit in ('3','3א','מב"ר') else unit) for r in rr for unit in [r['unit']]);assert len(rr)<=20 and max(combined.values())<=13
-            else:assert len(rr)<=c['maximum'] and max(u.values())<=c['level'] and not ('3' in u and '3א' in u);over+=len(rr)>c['normal']
+            else:assert len(rr)<=c['maximum'] and max(u.values())<=c['level'] and not ('3' in u and 'מב"ר' in u);over+=len(rr)>c['normal']
     reduced_numbers=[room for room,kind in kinds.items() if kind.startswith('מצומצם ')]
     if len(reduced_numbers)==2:assert abs(len(rooms[reduced_numbers[0]])-len(rooms[reduced_numbers[1]]))<=3
     extra_reduced={a[r['row']] for r in p if is_reduced(r,c) and is_extra_45(r)}
