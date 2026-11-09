@@ -36,7 +36,7 @@ jobs:
           if duplicates:
               raise SystemExit(f'Duplicate HTML ids: {duplicates}')
           print(f'HTML ids OK: {len(ids)} unique ids')
-      - name: Validate Version 17 room rules
+      - name: Validate room rules
         shell: python
         run: |
           import os, sys
@@ -166,6 +166,10 @@ jobs:
           assert pdf.startswith(b'%PDF-') and len(pdf)>1000
           assert meta['pages']==meta['rooms'] and meta['rooms']>=1
           print('Combined seating PDF OK',meta)
+      - name: Validate database imports and accommodations
+        run: |
+          python tests/database_update.py
+          python tests/accommodations_pending.py
       - name: Verify About dialog and workflow controls
         shell: pwsh
         run: |
@@ -174,7 +178,7 @@ jobs:
       - name: Upload UI verification screenshots
         uses: actions/upload-artifact@v4
         with:
-          name: About_v31_screenshots
+          name: About_v32_screenshots
           path: ui-checks/*.png
           if-no-files-found: error
       - name: Build application
@@ -192,6 +196,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ExamRoomApp_Setup_v31
-          path: installer_output/ExamRoomApp_Setup_v31.exe
+          name: ExamRoomApp_Setup_v32
+          path: installer_output/ExamRoomApp_Setup_v32.exe
           if-no-files-found: error
