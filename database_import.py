@@ -438,7 +438,6 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
             changes = len(loadable)
         existing_rows = _read_sheet(xml.encode('utf-8'), shared)
         existing = _dbase_records(existing_rows)
-        teacherless_ids = set()
         teacherless_ids = {student['id'] for student in teacherless}
         for student in teacherless:
             log_rows.append([now, 'חסר שיבוץ מתמטיקה', student['id'], student['name'],
