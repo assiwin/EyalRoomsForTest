@@ -40,6 +40,7 @@
         <label class="file-card"><b>קובץ נתוני תלמידים</b><span>כל תלמיד בשורה; המערכת קוראת ת״ז, שם, כיתה ושיוך מתמטיקה מעמודות הקבוצה.</span><input id="studentDataFile" type="file" accept=".xlsx,.xlsm"></label>
         <label class="file-card"><b>קובץ התאמות</b><span>נקרא לפי ת״ז ומעדכן תוספת זמן, הגדלה, הקראה וחדרים. אפשר לטעון כל קובץ בנפרד.</span><input id="accommodationDataFile" type="file" accept=".xlsx,.xlsm"></label>
       </div>
+      <label class="inline-option"><input id="bagrutAccommodation" type="checkbox"><span><b>התאמות בגרות</b><br>סמן אם קובץ ההתאמות הוא קובץ משרד החינוך עם קוד התאמה בעמודה I.</span></label>
       <div id="databaseError" class="error" role="alert" hidden></div>
       <button id="processDatabase" class="primary" disabled>עדכן את בסיס הנתונים</button>
       <p id="databaseStatus" class="note" role="status" aria-live="polite">יש לבחור לפחות אחד משני הקבצים: נתוני תלמידים או התאמות.</p>
@@ -67,10 +68,10 @@
           <form id="scheduleForm">
             <div class="schedule-wrap">
               <table class="schedule-table">
-                <thead><tr><th>נתון</th><th>3א</th><th>3 יחידות</th><th>4 יחידות</th><th>5 יחידות</th></tr></thead>
+                <thead><tr><th>נתון</th><th>מב״ר</th><th>3 יחידות</th><th>4 יחידות</th><th>5 יחידות</th></tr></thead>
                 <tbody>
-                  <tr class="schedule-input-row"><th>שעת התחלה</th><td><input id="start-3a" type="time" value="10:25" required aria-label="שעת התחלה 3א"></td><td><input id="start-3" type="time" value="08:45" required aria-label="שעת התחלה 3 יחידות"></td><td><input id="start-4" type="time" value="08:45" required aria-label="שעת התחלה 4 יחידות"></td><td><input id="start-5" type="time" value="10:35" required aria-label="שעת התחלה 5 יחידות"></td></tr>
-                  <tr class="schedule-input-row"><th>משך בדקות</th><td><input id="duration-3a" type="number" min="1" max="600" value="100" required aria-label="משך 3א"></td><td><input id="duration-3" type="number" min="1" max="600" value="100" required aria-label="משך 3 יחידות"></td><td><input id="duration-4" type="number" min="1" max="600" value="160" required aria-label="משך 4 יחידות"></td><td><input id="duration-5" type="number" min="1" max="600" value="130" required aria-label="משך 5 יחידות"></td></tr>
+                  <tr class="schedule-input-row"><th>שעת התחלה</th><td><input id="start-3a" type="time" value="09:45" required aria-label="שעת התחלה מב״ר"></td><td><input id="start-3" type="time" value="09:45" required aria-label="שעת התחלה 3 יחידות"></td><td><input id="start-4" type="time" value="09:45" required aria-label="שעת התחלה 4 יחידות"></td><td><input id="start-5" type="time" value="09:45" required aria-label="שעת התחלה 5 יחידות"></td></tr>
+                  <tr class="schedule-input-row"><th>משך בדקות</th><td><input id="duration-3a" type="number" min="1" max="600" value="100" required aria-label="משך מב״ר"></td><td><input id="duration-3" type="number" min="1" max="600" value="100" required aria-label="משך 3 יחידות"></td><td><input id="duration-4" type="number" min="1" max="600" value="160" required aria-label="משך 4 יחידות"></td><td><input id="duration-5" type="number" min="1" max="600" value="130" required aria-label="משך 5 יחידות"></td></tr>
                   <tr><th>סיום ללא תוספת</th><td id="end-3a-0">—</td><td id="end-3-0">—</td><td id="end-4-0">—</td><td id="end-5-0">—</td></tr>
                   <tr><th>תוספת 25%</th><td id="end-3a-25">—</td><td id="end-3-25">—</td><td id="end-4-25">—</td><td id="end-5-25">—</td></tr>
                   <tr><th>תוספת 33%</th><td id="end-3a-33">—</td><td id="end-3-33">—</td><td id="end-4-33">—</td><td id="end-5-33">—</td></tr>
@@ -194,7 +195,7 @@
     <div class="about-heading"><h2 id="aboutTitle">אודות סדרן חדרים</h2><button id="closeAbout" class="about-close" type="button" aria-label="סגירת חלון אודות" autofocus>×</button></div>
     <p>אפליקציה לשיבוץ חדרים לנבחנים ולהכנת קובצי הבחינה.</p>
     <dl class="about-details">
-      <div><dt>גרסה</dt><dd><b dir="ltr">31.0.0</b></dd></div>
+      <div><dt>גרסה</dt><dd><b dir="ltr">32.0.0</b></dd></div>
       <div><dt>נוצר על ידי</dt><dd>אסי וינברגר ואייל שיף</dd></div>
       <div><dt>מערכת הפעלה</dt><dd>Windows 10 / 11, ‏64 ביט</dd></div>
     </dl>
