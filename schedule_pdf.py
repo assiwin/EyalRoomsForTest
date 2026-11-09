@@ -61,7 +61,7 @@ def create_schedule_pdf(schedule, font_base):
                             leading=12, alignment=TA_CENTER, textColor=colors.HexColor('#193149'))
     bold = ParagraphStyle('schedule-bold', parent=normal, fontName='EnvelopeHebrewBold')
     level_order = ('5', '4', '3', '3a')
-    data = [[_p(label, bold) for label in ('5 יחידות', '4 יחידות', '3 יחידות', 'א3', 'נתון')]]
+    data = [[_p(label, bold) for label in ('5 יחידות', '4 יחידות', '3 יחידות', 'מב״ר', 'נתון')]]
     data.append([schedule[level]['start'] for level in level_order] + [_p('שעת התחלה', bold)])
     data.append([str(schedule[level]['duration']) for level in level_order] + [_p('משך בדקות', bold)])
     labels = {0: 'סיום ללא תוספת', 25: 'תוספת 25%', 33: 'תוספת 33%', 50: 'תוספת 50%'}
