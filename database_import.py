@@ -223,6 +223,42 @@ def parse_accommodations_workbook(data):
     return result, len(_sheet_paths(files)), accommodation_fields
 
 
+def parse_bagrut_accommodations_workbook(data):
+    """Read Ministry accommodation rows (B=ID, F=subject, I=code), from row 4."""
+    _, files = _files(data)
+    shared = _strings(files)
+    result = {}
+    math_rows = recognized_rows = 0
+    fields = set()
+    mapping = {'57': ('D', '50'), '5': ('D', '25'), '56': ('D', '33'),
+               '27': ('M', '1'), '6': ('F', 'כן'), '17': ('L', '1'),
+               '35': ('F', 'כן'), '9': ('E', 'כן')}
+    for sheet_name, path in _sheet_paths(files):
+        if path not in files:
+            continue
+        rows = _read_sheet(files[path], shared)
+        for number in sorted(n for n in rows if n >= 4):
+            row = rows[number]
+            student_id = _norm(row.get('B'))
+            if not student_id or 'מתמטיקה' not in _norm(row.get('F')):
+                continue
+            math_rows += 1
+            mapped = mapping.get(_norm(row.get('I')))
+            if not mapped:
+                continue
+            target, value = mapped
+            fields.add(target)
+            recognized_rows += 1
+            values = result.setdefault(student_id, {})
+            if target == 'D' and target in values:
+                values[target] = str(max(int(values[target]), int(value)))
+            else:
+                values[target] = value
+    if not math_rows:
+        raise ValueError('לא נמצאו רשומות מתמטיקה החל משורה 4 בקובץ התאמות הבגרות.')
+    return result, len(_sheet_paths(files)), fields, math_rows, recognized_rows
+
+
 def _classlist(files, filename):
     if not re.match(r'^classlist', filename or '', re.I):
         raise ValueError('שם קובץ בסיס הנתונים חייב להתחיל ב־classlist.')
@@ -371,14 +407,19 @@ def _dbase_records(rows):
     return records
 
 
-def import_database(base_data, student_data, accommodation_data, mode, base_filename):
+def import_database(base_data, student_data, accommodation_data, mode, base_filename,
+                    bagrut_accommodations=False):
     if mode not in ('new', 'update'):
         raise ValueError('יש לבחור טעינת קובץ חדש או עדכון קובץ קיים.')
     infos, files = _files(base_data)
     dbase_path = _classlist(files, base_filename)
     students, sheets = parse_teacher_workbook(student_data) if student_data else ([], 0)
-    accommodations, accommodation_sheets, accommodation_fields = (
-        parse_accommodations_workbook(accommodation_data) if accommodation_data else ({}, 0, set()))
+    if accommodation_data and bagrut_accommodations:
+        accommodations, accommodation_sheets, accommodation_fields, bagrut_math_rows, bagrut_recognized_rows = parse_bagrut_accommodations_workbook(accommodation_data)
+    else:
+        accommodations, accommodation_sheets, accommodation_fields = (
+            parse_accommodations_workbook(accommodation_data) if accommodation_data else ({}, 0, set()))
+        bagrut_math_rows = bagrut_recognized_rows = 0
     active_accommodations = {student_id: values for student_id, values in accommodations.items() if values}
     if not student_data and not accommodation_data:
         raise ValueError('יש לבחור לפחות קובץ נתוני תלמידים או קובץ התאמות.')
@@ -469,17 +510,21 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
             matched.add(student_id)
             row_number, old = record
             details = []
-            target_columns = accommodation_fields if mode == 'update' else values.keys()
+            target_columns = (values.keys() if bagrut_accommodations else
+                              (accommodation_fields if mode == 'update' else values.keys()))
             field_labels = {'D': 'תוספת זמן', 'E': 'הגדלת שאלון', 'F': 'הקראה במתמטיקה',
                             'L': 'כיתה מצומצמת', 'M': 'חדר נפרד'}
             for column in target_columns:
                 value = values.get(column, '')
                 before = _norm(old.get(column))
+                if bagrut_accommodations and column == 'D' and before.isdigit() and value.isdigit():
+                    value = str(max(int(before), int(value)))
                 if before != value:
                     xml = _set_cell(xml, f'{column}{row_number}', value)
                     details.append(f'{field_labels.get(column, column)}: „{before or "ריק"}” ← „{value or "בוטל/הוסר"}”')
-            if details and mode == 'update':
-                log_rows.append([now, 'עדכון התאמות', student_id, _norm(old.get('B')), '; '.join(details)])
+            if details and (mode == 'update' or bagrut_accommodations):
+                label = 'עדכון התאמות בגרות' if bagrut_accommodations else 'עדכון התאמות'
+                log_rows.append([now, label, student_id, _norm(old.get('B')), '; '.join(details)])
             if details:
                 changes += 1
         if mode == 'update':
@@ -498,6 +543,9 @@ def import_database(base_data, student_data, accommodation_data, mode, base_file
             'changes': changes, 'logEntries': max(0, len(log_rows) - 1),
             'unmatchedAccommodations': unmatched,
             'studentFileLoaded': bool(student_data), 'accommodationFileLoaded': bool(accommodation_data)}
+    if bagrut_accommodations:
+        meta.update(bagrutAccommodation=True, bagrutMathRows=bagrut_math_rows,
+                    bagrutRecognizedRows=bagrut_recognized_rows)
     if mode == 'update':
         meta.update(dbaseRecords=len(existing), dbaseNonParticipants=sum(1 for _, row in existing.values() if _norm(row.get('J')) != '1'))
         if students:

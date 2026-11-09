@@ -137,6 +137,8 @@ def main():
                         self.send(200,activate_book(state['databaseOutput'],state['databaseName'],state.get('databaseBasePath')));return
                     if path=='/database-import':
                         payload=json.loads(raw or b'{}');mode=payload.get('mode')
+                        bagrut_accommodation=payload.get('bagrutAccommodation',False)
+                        if type(bagrut_accommodation) is not bool:raise ValueError('בחירת סוג קובץ ההתאמות אינה תקינה.')
                         base_data=state.get('databaseBaseData');base_name=state.get('databaseBaseName')
                         try:
                             student_data=base64.b64decode(payload.get('studentData',''),validate=True) if payload.get('studentData') else b''
@@ -144,7 +146,8 @@ def main():
                         except Exception:raise ValueError('לא ניתן לקרוא את אחד מקובצי הקלט.')
                         if not base_data or not base_name:raise ValueError('יש לבחור קובץ classlist.')
                         if any(len(value)>20_000_000 for value in (student_data,accommodation_data)):raise ValueError('כל קובץ קלט מוגבל ל־20 MB.')
-                        output,meta=import_database(base_data,student_data,accommodation_data,mode,base_name)
+                        output,meta=import_database(base_data,student_data,accommodation_data,mode,base_name,
+                                                    bagrut_accommodations=bagrut_accommodation)
                         state.update(databaseOutput=output,databaseName=base_name)
                         saved=persist_workbook(output)
                         self.send(200,{**meta,'filename':base_name,'savedPath':saved});return

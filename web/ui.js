@@ -18,7 +18,7 @@ function setJourney(screenId){
 setJourney('databaseScreen');
 
 const scheduleLevels=['3a','3','4','5'],scheduleExtras=[0,25,33,50];
-const scheduleDefaults={'3a':{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'08:45',duration:160},5:{start:'10:35',duration:130}};
+const scheduleDefaults={'3a':{start:'09:45',duration:100},3:{start:'09:45',duration:100},4:{start:'09:45',duration:160},5:{start:'09:45',duration:130}};
 function scheduleEnd(start,duration,extra){
   if(!/^\d{2}:\d{2}$/.test(start)||!Number.isInteger(duration)||duration<1)return '—';
   const [hours,minutes]=start.split(':').map(Number),total=hours*60+minutes+duration+Math.floor(duration*extra/100);
@@ -37,19 +37,19 @@ function updateSchedule(){
   const value=readSchedule(),valid=$('scheduleForm').checkValidity();
   for(const level of scheduleLevels)for(const extra of scheduleExtras)$('end-'+level+'-'+extra).textContent=scheduleEnd(value[level].start,value[level].duration,extra);
   examSchedule=valid?value:null;
-  if(valid){localStorage.setItem('exam-room-schedule-v8',JSON.stringify(value));$('scheduleSaveStatus').textContent='הזמנים נשמרו במחשב.'}
+  if(valid){localStorage.setItem('exam-room-schedule-v9',JSON.stringify(value));$('scheduleSaveStatus').textContent='הזמנים נשמרו במחשב.'}
   else $('scheduleSaveStatus').textContent='יש להשלים שעת התחלה ומשך תקינים לכל רמה.';
   controls();
 }
 $('scheduleForm').oninput=updateSchedule;
-$('resetSchedule').onclick=()=>{localStorage.removeItem('exam-room-schedule-v8');applySchedule(scheduleDefaults)};
+$('resetSchedule').onclick=()=>{localStorage.removeItem('exam-room-schedule-v8');localStorage.removeItem('exam-room-schedule-v9');applySchedule(scheduleDefaults)};
 $('makeSchedulePdf').onclick=async()=>{
   if(!$('scheduleForm').reportValidity())return;
   try{schedulePdfBusy=true;controls();$('scheduleSaveStatus').textContent='מפיק PDF של זמני הבחינה…';const info=await api('/schedule-pdf',{schedule:readSchedule()});$('scheduleSaveStatus').textContent=`נוצר ${info.filename}. תיקיית הפלט נפתחה.`}
   catch(e){error(e.message);$('scheduleSaveStatus').textContent='הפקת קובץ זמני הבחינה נכשלה.'}
   finally{schedulePdfBusy=false;controls()}
 };
-try{applySchedule(JSON.parse(localStorage.getItem('exam-room-schedule-v8'))||scheduleDefaults)}catch{applySchedule(scheduleDefaults)}
+try{const saved=JSON.parse(localStorage.getItem('exam-room-schedule-v9'));const previous=JSON.parse(localStorage.getItem('exam-room-schedule-v8'));const initial=saved||previous;if(initial){for(const level of scheduleLevels)if(initial[level]?.start===({'3a':'10:25',3:'08:45',4:'08:45',5:'10:35'})[level])initial[level].start='09:45'}applySchedule(initial||scheduleDefaults)}catch{applySchedule(scheduleDefaults)}
 
 async function api(path,body,raw=false){
   const headers={'X-App-Token':token};
@@ -70,13 +70,16 @@ $('chooseDatabaseBase').onclick=async()=>{
 };
 $('studentDataFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()};
 $('accommodationDataFile').onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false;databaseControls()};
+$('bagrutAccommodation').onchange=()=>{$('databaseSuccess').hidden=true;databaseReady=false};
 $('processDatabase').onclick=async()=>{
   const studentFile=$('studentDataFile').files[0],accommodationFile=$('accommodationDataFile').files[0],mode=document.querySelector('input[name=databaseMode]:checked')?.value;
   if(!databaseBaseSelected||(!studentFile&&!accommodationFile))return;if(!confirm('הנך מעדכן את בסיס הנתונים, האם להמשיך?'))return;
   try{databaseBusy=true;databaseControls();$('databaseError').hidden=true;$('databaseSuccess').hidden=true;$('databaseStatus').textContent='קורא את הקבצים ומעדכן את קובץ classlist…';
-    const info=await api('/database-import',{mode,studentName:studentFile?.name||'',studentData:studentFile?await fileToBase64(studentFile):'',accommodationName:accommodationFile?.name||'',accommodationData:accommodationFile?await fileToBase64(accommodationFile):''});
+    const info=await api('/database-import',{mode,bagrutAccommodation:$('bagrutAccommodation').checked,studentName:studentFile?.name||'',studentData:studentFile?await fileToBase64(studentFile):'',accommodationName:accommodationFile?.name||'',accommodationData:accommodationFile?await fileToBase64(accommodationFile):''});
     databaseReady=true;
-    const summary=`${info.studentFileLoaded?`${info.students} תלמידים נקראו מקובץ נתוני התלמידים.`:'קובץ נתוני תלמידים לא נטען.'} ${info.accommodationFileLoaded?`${info.accommodationStudents} תלמידים נקראו מקובץ ההתאמות.`:'קובץ התאמות לא נטען; ההתאמות לא עודכנו.'} ${mode==='update'?`נסרקו ${info.dbaseRecords} רשומות dbase, כולל ${info.dbaseNonParticipants} שאינם מסומנים כמשתתפים.`:''} נרשמו ${info.logEntries} הערות בגיליון log.`;
+    const accommodationLabel=info.bagrutAccommodation?'קובץ התאמות הבגרות':'קובץ ההתאמות';
+    const bagrutStats=info.bagrutAccommodation?` נסרקו ${info.bagrutMathRows} רשומות מתמטיקה וזוהו ${info.bagrutRecognizedRows} קודי התאמה.`:'';
+    const summary=`${info.studentFileLoaded?`${info.students} תלמידים נקראו מקובץ נתוני התלמידים.`:'קובץ נתוני תלמידים לא נטען.'} ${info.accommodationFileLoaded?`${info.accommodationStudents} תלמידים נקראו מ${accommodationLabel}.`:'קובץ התאמות לא נטען; ההתאמות לא עודכנו.'}${bagrutStats} ${mode==='update'?`נסרקו ${info.dbaseRecords} רשומות dbase, כולל ${info.dbaseNonParticipants} שאינם מסומנים כמשתתפים.`:''} נרשמו ${info.logEntries} הערות בגיליון log.`;
     $('databaseDetails').textContent=summary+(info.savedPath?` הקובץ נשמר גם ב־${info.savedPath}.`:'');
     $('databaseSuccess').hidden=false;$('databaseStatus').textContent='העדכון הסתיים בהצלחה. הקובץ נשמר בתיקיית הפלט; ניתן לפתוח אותה או להמשיך לשיבוץ.';
   }catch(e){$('databaseError').hidden=false;$('databaseError').textContent=e.message;$('databaseStatus').textContent='עדכון בסיס הנתונים נכשל.'}

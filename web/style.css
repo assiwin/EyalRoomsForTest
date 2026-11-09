@@ -71,3 +71,4 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .about-details>div{display:flex;gap:16px;padding:5px 0}.about-details dt{min-width:108px;font-weight:bold}.about-details dd{margin:0}
 .about-dialog h3{font-size:16px;margin:18px 0 4px}.about-dialog p{font-size:15px}.about-dialog .note{font-size:13px;margin-top:18px}
 @media(max-width:480px){header{padding:14px 16px}.brand b{font-size:22px}.header-actions{gap:6px}.about-dialog{padding:18px}.about-details{padding:10px}.about-details dt{min-width:92px}}
+.inline-option{display:flex;align-items:flex-start;gap:10px;margin:16px 0;padding:12px 14px;border:1px solid #dbe5ed;border-radius:12px;background:#f8fbfd;cursor:pointer}.inline-option input{margin-top:7px;accent-color:#236b9a}.inline-option span{line-height:1.45}.inline-option b{color:#17324d}
