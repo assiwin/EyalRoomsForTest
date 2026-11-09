@@ -5,7 +5,8 @@ import zipfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from database_import import _files, _read_sheet, _strings, import_database, parse_teacher_workbook
+from database_import import (_files, _read_sheet, _strings, import_database,
+                             parse_bagrut_accommodations_workbook, parse_teacher_workbook)
 import engine
 
 MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
@@ -66,6 +67,13 @@ def accommodations(records, enlargement_header='הגדלת שאלון הבחינ
     return workbook([('התאמות', header + content)])
 
 
+def bagrut_accommodations(records):
+    header = row(3, {'B': 'תעודת זהות', 'F': 'מקצוע', 'I': 'קוד התאמה'})
+    content = ''.join(row(i + 4, {'B': sid, 'F': subject, 'I': code})
+                      for i, (sid, subject, code) in enumerate(records))
+    return workbook([('התאמות בגרות', header + content)])
+
+
 # Initial import omits students without a math X and reports them in LOG.
 base_blank = classlist('')
 student_file = student_matrix([('101', 'כהן א', 'X'), ('102', 'לוי ב', '')])
@@ -92,6 +100,42 @@ old_header_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files)
 assert old_header_rows[2].get('E', '') == old_header_rows[2].get('F', '') == ''
 new_header_rows = rows
 assert new_header_rows[2]['E'] == new_header_rows[2]['F'] == 'כן'
+
+# Ministry Bagrut rows are accumulated by student, filtered to mathematics,
+# and the strongest extra-time code wins regardless of row order.
+bagrut_file = bagrut_accommodations([
+    ('201', 'מתמטיקה 4 יחידות', '5'), ('201', 'מתמטיקה שאלון נוסף', '56'),
+    ('201', 'מתמטיקה', '57'), ('201', 'מתמטיקה', '6'), ('201', 'מתמטיקה', '27'),
+    ('201', 'מתמטיקה', '17'), ('201', 'מתמטיקה', '35'), ('201', 'מתמטיקה', '9'),
+    ('202', 'מתמטיקה', '5'), ('203', 'אנגלית', '57'), ('204', 'מתמטיקה', '999'),
+])
+bagrut, _, bagrut_fields, math_rows, recognized_rows = parse_bagrut_accommodations_workbook(bagrut_file)
+assert bagrut['201'] == {'D': '50', 'F': 'כן', 'M': '1', 'L': '1', 'E': 'כן'}
+assert bagrut['202'] == {'D': '25'} and '203' not in bagrut and '204' not in bagrut
+assert bagrut_fields == {'D', 'E', 'F', 'L', 'M'} and math_rows == 10 and recognized_rows == 9
+
+# Existing D is never downgraded, unrelated fields stay untouched, and both
+# initial load and update write Bagrut changes into LOG.
+initial_bagrut, initial_meta = import_database(
+    base_blank, student_matrix([('201', 'תלמיד א', 'X'), ('202', 'תלמיד ב', 'X')]),
+    bagrut_file, 'new', 'classlist.xlsx', bagrut_accommodations=True)
+_, files = _files(initial_bagrut)
+initial_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
+assert initial_rows[2]['D'] == '50' and initial_rows[2]['E'] == initial_rows[2]['F'] == 'כן'
+assert initial_rows[2]['L'] == initial_rows[2]['M'] == '1' and initial_rows[3]['D'] == '25'
+assert initial_meta['bagrutMathRows'] == 10 and initial_meta['bagrutRecognizedRows'] == 9
+assert initial_meta['logEntries'] >= 2
+initial_log = _read_sheet(files['xl/worksheets/sheet3.xml'], _strings(files))
+assert any('התאמות בגרות' in row.get('B', '') for row in initial_log.values())
+
+existing_bagrut = classlist(row(2, {'A': '201', 'B': 'תלמיד א', 'D': '33', 'E': 'כן', 'G': 'מורה', 'H': '4', 'J': '0'}))
+updated_bagrut, _ = import_database(existing_bagrut, b'', bagrut_file, 'update', 'classlist.xlsx', bagrut_accommodations=True)
+_, files = _files(updated_bagrut)
+updated_rows = _read_sheet(files['xl/worksheets/sheet1.xml'], _strings(files))
+assert updated_rows[2]['D'] == '50' and updated_rows[2]['E'] == 'כן'  # no downgrade, absent code preserved
+assert updated_rows[2]['F'] == 'כן' and updated_rows[2]['L'] == updated_rows[2]['M'] == '1'
+updated_log = _read_sheet(files['xl/worksheets/sheet3.xml'], _strings(files))
+assert any('עדכון התאמות בגרות' in row.get('B', '') for row in updated_log.values())
 
 # During an update, blank accommodation cells clear stale values from dbase and are logged.
 stale_base = classlist(row(2, {'A': '115', 'B': 'תלמיד בדיקה', 'D': '25', 'E': 'כן', 'F': 'כן',
