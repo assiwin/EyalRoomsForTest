@@ -18,7 +18,7 @@ for(const screen of ['databaseScreen','mainScreen','roomMapScreen','seatingScree
  assert(await page.locator('#about').isVisible());
  assert(await page.locator('#appIcon').evaluate(img=>img.complete&&img.naturalWidth>0));
  assert(await page.locator('.journey').isVisible());
- if(screen==='mainScreen'){const rules=await page.locator('#settings details').innerText();assert(rules.includes('במצב רגיל אין ערבוב 3 ומב״ר'));assert(!rules.includes('3א'));assert(rules.includes('3 עם מב״ר נספרים יחד'));}
+ if(screen==='mainScreen'){const rules=await page.locator('#settings details').innerText();assert(rules.includes('במצב רגיל אין ערבוב 3 ומב״ר'));assert(!rules.includes('3א'));assert(rules.includes('3 עם מב״ר נספרים יחד'));assert(await page.locator('.schedule-table thead').innerText().then(t=>t.includes('מב״ר')));for(const id of ['start-3a','start-3','start-4','start-5'])assert(await page.locator('#'+id).inputValue()==='09:45');}
  assert(!(await page.locator('body').innerText()).includes('32.0.0'));
  assert(!(await page.locator('body').innerText()).includes('אסי וינברגר'));
  await page.locator('#about').click();assert(await page.locator('#aboutDialog').isVisible());
@@ -35,9 +35,9 @@ await page.locator('#skipDatabase').click();assert(await page.locator('#mainScre
 await page.setViewportSize({width:390,height:844});await page.locator('#about').click();
 const b=await page.locator('#aboutDialog').boundingBox();assert(b.x>=0&&b.x+b.width<=390);assert(await page.locator('#closeAbout').isVisible());
 await page.screenshot({path:path.join(screenshots,'v32-about-mobile.png')});
-await page.evaluate(()=>localStorage.setItem('exam-room-schedule-v8',JSON.stringify({'3a':{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'08:45',duration:160},5:{start:'10:35',duration:130}})));
+await page.evaluate(()=>{localStorage.removeItem('exam-room-schedule-v9');localStorage.setItem('exam-room-schedule-v8',JSON.stringify({'3a':{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'08:45',duration:160},5:{start:'10:35',duration:130}}))});
 await page.reload();assert(await page.locator('#start-3a').inputValue()==='09:45');assert(await page.locator('#start-3').inputValue()==='09:45');
-await page.evaluate(()=>localStorage.setItem('exam-room-schedule-v8',JSON.stringify({'3a':{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'11:15',duration:160},5:{start:'10:35',duration:130}})));
+await page.evaluate(()=>{localStorage.removeItem('exam-room-schedule-v9');localStorage.setItem('exam-room-schedule-v8',JSON.stringify({'3a':{start:'10:25',duration:100},3:{start:'08:45',duration:100},4:{start:'11:15',duration:160},5:{start:'10:35',duration:130}}))});
 await page.reload();assert(await page.locator('#start-4').inputValue()==='11:15');assert(await page.locator('#start-5').inputValue()==='09:45');
 assert.deepStrictEqual(errors,[]);console.log('About checks passed: four screens, hidden credits/version, Escape, close, backdrop, focus restoration, workflow controls, narrow viewport, no JS errors');
 }finally{await browser.close();server.close()}
