@@ -1,3 +1,11 @@
+32.0.0
+
+New in this version:
+- Adds Ministry Bagrut accommodation import, mapping codes to dbase fields and selecting the highest extra-time rate per student without lowering existing values.
+- Uses only mathematics rows in the Bagrut workbook and records accommodation changes in LOG.
+- Sets schedule start times to 09:45, labels the schedule column מב״ר, and migrates saved default times while preserving custom times.
+
+Previous version:
 31.0.0
 
 New in this version:
