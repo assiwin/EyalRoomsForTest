@@ -178,7 +178,7 @@ jobs:
       - name: Upload UI verification screenshots
         uses: actions/upload-artifact@v4
         with:
-          name: About_v32_screenshots
+          name: About_v33_screenshots
           path: ui-checks/*.png
           if-no-files-found: error
       - name: Build application
@@ -196,6 +196,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: ExamRoomApp_Setup_v32
-          path: installer_output/ExamRoomApp_Setup_v32.exe
+          name: ExamRoomApp_Setup_v33
+          path: installer_output/ExamRoomApp_Setup_v33.exe
           if-no-files-found: error
