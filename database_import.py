@@ -78,6 +78,14 @@ def _column_number(name):
     return value
 
 
+def _awaiting_approval_heading(value):
+    """Detect the pending-approval phrase despite bidi marks in Excel headers."""
+    text = _norm(value)
+    text = re.sub(r'[\u200e\u200f\u202a-\u202e\u2066-\u2069]', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return re.search(r'טרם\s+אושר', text) is not None
+
+
 def _teacher_from_header(header):
     text = _norm(header)
     if 'מתמטיקה' not in text:
@@ -188,7 +196,7 @@ def parse_accommodations_workbook(data):
             # Accommodations awaiting committee approval must never affect a
             # student's classlist, even when the rest of the header matches a
             # recognized accommodation.
-            if 'טרם אושר' in re.sub(r'\s+', ' ', label):
+            if _awaiting_approval_heading(label):
                 continue
             if 'תוספת זמן' in label:
                 percent_match = re.search(r'(?<!\d)(50|33|25)\s*%', label)
