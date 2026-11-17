@@ -1,3 +1,10 @@
+33.0.0
+
+New in this version:
+- Ignores accommodation columns marked “טרם אושר” during new loads and updates, including headers containing hidden bidirectional text marks.
+- Adds regression coverage for pending approvals and validates the behavior against the updated classlist workbook.
+
+Previous version:
 32.0.0
 
 New in this version:
