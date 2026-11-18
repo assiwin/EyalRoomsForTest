@@ -187,6 +187,28 @@ _, mbar_files = _files(mbar_updated)
 mbar_rows = _read_sheet(mbar_files['xl/worksheets/sheet1.xml'], _strings(mbar_files))
 assert mbar_rows[2]['H'] == 'מב"ר' and mbar_rows[3]['H'] == '3'
 
+# Reading-accommodation students can be moved to one or two dedicated rooms.
+# Use the supplied updated class list to check real dbase parsing and room order.
+from pathlib import Path
+real_book = engine.read_book((Path(__file__).resolve().parents[1] / 'classlist_updated.xlsx').read_bytes())
+assert real_book['readingCount'] == 16
+assert len(real_book['participants']) == 354
+real_cfg = {'normal':29, 'maximum':32, 'percent':30, 'level':16, 'limit':25,
+            'singleDesk':False, 'reducedRooms':1, 'readingRooms':1,
+            'extraTimePolicy':'regularTogether'}
+real_result = engine.solve(real_book, real_cfg)
+reading_rooms = [item for item in real_result['rooms'] if item['kind'].startswith('הקראה ')]
+reduced_rooms = [item for item in real_result['rooms'] if item['kind'].startswith('מצומצם ')]
+dedicated_rooms = [item for item in real_result['rooms'] if item['kind'].startswith('כיתה ')]
+assert len(reading_rooms) == len(reduced_rooms) == len(dedicated_rooms) == 1
+assert dedicated_rooms[0]['room'] < reading_rooms[0]['room'] < reduced_rooms[0]['room']
+assigned_readers = {real_result['assignments'][s['row']] for s in real_book['participants']
+                    if s.get('reading') == 'כן' and not s.get('separate')}
+assert assigned_readers == {reading_rooms[0]['room']}
+assert real_result['matrix']['roomKinds'][reading_rooms[0]['room']-1] == 'הקראה 1'
+assert real_result['matrix']['roomTotals'][reading_rooms[0]['room']-1] == 16
+print('Reading-room assignment with classlist_updated.xlsx OK', real_result['total'])
+
 # Room rules use Mabar as the solver category, while accepting legacy 3a rows.
 def rule_students(count3, count_mbar, unit_mbar='מב"ר'):
     students = []

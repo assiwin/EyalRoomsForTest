@@ -17,6 +17,7 @@ def create_matrix_pdf(result, font_base):
     rooms = matrix.get('rooms') or []
     rows = matrix.get('rows') or []
     room_totals = matrix.get('roomTotals') or []
+    room_kinds = matrix.get('roomKinds') or [item.get('kind', '') for item in result.get('rooms', [])]
     participants = result.get('participants')
 
     if not rooms or not rows or participants is None:
@@ -73,8 +74,10 @@ def create_matrix_pdf(result, font_base):
 
     descending_rooms = list(reversed(rooms))
     descending_totals = list(reversed(room_totals))
+    kind_by_room = {room: room_kinds[index] for index, room in enumerate(rooms)
+                    if index < len(room_kinds)}
     header_row = [
-        Paragraph(_visual(f'חדר {room}').replace(' ', '&nbsp;'), room_header)
+        Paragraph(_visual(f'חדר {room}' + ('\nהקראה' if str(kind_by_room.get(room, '')).startswith('הקראה ') else '')).replace(' ', '&nbsp;'), room_header)
         for room in descending_rooms
     ] + [
         _p('סה״כ', header), _p('יחידות', header), _p('שם מורה', header)]
