@@ -66,7 +66,7 @@ def main():
         if not source_path:source.parent.mkdir(parents=True,exist_ok=True)
         state['sourcePath']=str(source_path) if source_path else '';state['sourceDir']=str(source.parent);state['generatedWorkbookPath']=str(generated_workbook_path(source))
         state.update(data=cleaned,book=read_book(cleaned),name=Path(name).name,management=management,result=restored_result,output=cleaned if restored_result else None,baseTotal=base_total,baseResult=restored_result,baseOutput=cleaned if restored_result else None,seatingPlansPdf=None,seatingPlansPdfPath=None,seatingPlansMeta=None)
-        return {'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'reducedCount':book.get('reducedCount',0),'separateCount':book.get('separateCount',0),'extraTimeCandidates':book.get('extraTimeCandidates',[]),'dedicated':book['dedicated'],'management':management,'restoredResult':restored_result,'baseTotal':base_total,'grade':'','filename':Path(name).name,'sourceDir':state.get('sourceDir')}
+        return {'records':len(book['records']),'participants':len(book['participants']),'special':book['special'],'reducedCount':book.get('reducedCount',0),'separateCount':book.get('separateCount',0),'readingCount':book.get('readingCount',0),'extraTimeCandidates':book.get('extraTimeCandidates',[]),'dedicated':book['dedicated'],'management':management,'restoredResult':restored_result,'baseTotal':base_total,'grade':'','filename':Path(name).name,'sourceDir':state.get('sourceDir')}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,format,*args):

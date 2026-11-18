@@ -1,8 +1,10 @@
-33.0.0
+34.0.0
 
 New in this version:
-- Ignores accommodation columns marked “טרם אושר” during new loads and updates, including headers containing hidden bidirectional text marks.
-- Adds regression coverage for pending approvals and validates the behavior against the updated classlist workbook.
+- Adds an optional separate room or two rooms for students eligible for reading assistance.
+- Places reading rooms after dedicated grade rooms and before reduced rooms.
+- Labels reading rooms in the teachers-by-rooms matrix, workbook matrix, and envelope PDFs.
+- Uses classlist_updated.xlsx to verify reading-room assignments and room ordering.
 
 Previous version:
 32.0.0

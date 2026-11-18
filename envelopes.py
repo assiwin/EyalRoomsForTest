@@ -140,7 +140,12 @@ def create_envelopes_pdf(book, result, grade, notes, font_base):
 
         continuation = ' — המשך' if room_parts > 1 and part > 1 else ''
         canvas.setFont('EnvelopeHebrewBold', 15)
-        canvas.drawRightString(right, top, _visual(f'חדר בחינה {room}{continuation}'))
+        kind = next((item.get('kind', '') for item in result.get('rooms', [])
+                     if int(item.get('room', -1)) == room), '')
+        room_title = f'חדר בחינה {room}'
+        if str(kind).startswith('הקראה '):
+            room_title += ' · חדר מיוחד להקראה'
+        canvas.drawRightString(right, top, _visual(f'{room_title}{continuation}'))
 
         # Header boxes: room, exam grade and up to two room-specific notes.
         header_y = top - 8 * mm
